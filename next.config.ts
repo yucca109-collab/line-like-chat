@@ -6,4 +6,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;s
+export default nextConfig;
