@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import OrderCreateForm from "./OrderCreateForm";
+
 
 type OrderRow = {
   id: string;
@@ -65,12 +67,17 @@ export default function OrdersPage() {
 	  <h1>案件一覧</h1>
 	  <p>ログイン中: {userEmail}</p>
 
+	  <OrderCreateForm onCreated={load} />
+
 	  <div style={{ marginTop: 16 }}>
 		<button onClick={createDummy}>＋ テスト案件を追加</button>
 		<button onClick={load} style={{ marginLeft: 8 }}>
 		  再読み込み
 		</button>
 	  </div>
+
+
+
 
 	  {loading && <p style={{ marginTop: 16 }}>読み込み中...</p>}
 	  {err && <p style={{ marginTop: 16, color: "tomato" }}>エラー: {err}</p>}
