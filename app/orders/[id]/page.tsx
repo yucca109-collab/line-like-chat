@@ -24,8 +24,8 @@ type Message = {
 
 export default function OrderDetailPage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const orderId = params.id;
+  const params = useParams();
+  const orderId = params?.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
