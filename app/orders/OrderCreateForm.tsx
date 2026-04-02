@@ -25,11 +25,18 @@ export default function OrderCreateForm({ onCreated }: Props) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user?.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("orders").insert({
       title,
       store_name: store,
       contact_name: contact,
       created_by: user?.id ?? null,
+      created_by_name: profile?.display_name ?? null,
     });
 
     setLoading(false);
