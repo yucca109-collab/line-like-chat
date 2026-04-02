@@ -14,7 +14,7 @@ type OrderRow = {
 
 export default function OrdersPage() {
   const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
@@ -23,13 +23,23 @@ export default function OrdersPage() {
     setErr("");
     setLoading(true);
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData.user) {
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
+    if (userErr || !user) {
       router.push("/login");
       return;
     }
 
-    setUserEmail(userData.user.email ?? "");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    setUserName(profile?.display_name || user.email || "");
 
     const { data, error } = await supabase
       .from("orders")
@@ -46,9 +56,21 @@ export default function OrdersPage() {
     setErr("");
     const title = `テスト案件 ${new Date().toLocaleString()}`;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user?.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("orders").insert({
       title,
       status: "new",
+      created_by: user?.id ?? null,
+      created_by_name: profile?.display_name ?? null,
     });
 
     if (error) setErr(error.message);
@@ -67,20 +89,16 @@ export default function OrdersPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
+      const pendingName = localStorage.getItem("pending_display_name");
 
+      if (pendingName) {
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          email: user.email,
+          display_name: pendingName,
+        });
 
-        if (name) {
-          await supabase.from("profiles").insert({
-            id: user.id,
-            display_name: name,
-            email: user.email,
-          });
-        }
+        localStorage.removeItem("pending_display_name");
       }
 
       await load();
@@ -93,7 +111,7 @@ export default function OrdersPage() {
   return (
     <div style={{ padding: 40 }}>
       <h1>案件一覧</h1>
-      <p>ログイン中: {userEmail}</p>
+      <p>ログイン中: {userName}</p>
 
       <OrderCreateForm onCreated={load} />
 
