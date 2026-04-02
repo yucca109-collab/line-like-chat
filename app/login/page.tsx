@@ -2,55 +2,56 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
-  const login = async () => {
-	const { error } = await supabase.auth.signInWithPassword({
-	  email,
-	  password,
-	});
+  const handleLogin = async () => {
+    if (!name.trim()) {
+      alert("名前を入力してください");
+      return;
+    }
 
-	if (!error) {
-	  router.push("/orders");
-	} else {
-	  alert(error.message);
-	}
-  };
+    if (!email.trim()) {
+      alert("メールを入力してください");
+      return;
+    }
 
-  const signup = async () => {
-	const { error } = await supabase.auth.signUp({
-	  email,
-	  password,
-	});
+    localStorage.setItem("pending_display_name", name);
 
-	if (error) alert(error.message);
-	else alert("登録成功！");
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/orders`,
+      },
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("ログインメールを送信しました");
   };
 
   return (
-	<div style={{ padding: 40 }}>
-	  <h1>スタッフログイン</h1>
+    <div style={{ padding: 40 }}>
+      <h1>スタッフログイン</h1>
 
-	  <input
-		placeholder="email"
-		value={email}
-		onChange={(e) => setEmail(e.target.value)}
-	  />
-	  <br />
-	  <input
-		placeholder="password"
-		type="password"
-		value={password}
-		onChange={(e) => setPassword(e.target.value)}
-	  />
-	  <br />
-	  <button onClick={login}>ログイン</button>
-	  <button onClick={signup}>新規登録</button>
-	</div>
+      <div style={{ display: "grid", gap: 12, maxWidth: 360 }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="スタッフ名"
+        />
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="メールアドレス"
+        />
+        <button onClick={handleLogin}>ログインリンクを送る</button>
+      </div>
+    </div>
   );
 }
