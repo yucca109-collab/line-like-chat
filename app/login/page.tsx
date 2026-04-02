@@ -13,9 +13,7 @@ export default function LoginPage() {
       return;
     }
 
-    // 名前を保存
     localStorage.setItem("user_name", name);
-
     router.push("/orders");
   };
 
@@ -30,9 +28,7 @@ export default function LoginPage() {
           placeholder="スタッフ名"
         />
 
-        <button onClick={handleLogin}>
-          ログイン
-        </button>
+        <button onClick={handleLogin}>ログイン</button>
       </div>
     </div>
   );
