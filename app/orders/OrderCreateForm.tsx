@@ -19,24 +19,20 @@ export default function OrderCreateForm({ onCreated }: Props) {
       return;
     }
 
+    const name = localStorage.getItem("user_name");
+
+    if (!name) {
+      alert("ログインし直してください");
+      return;
+    }
+
     setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user?.id)
-      .maybeSingle();
 
     const { error } = await supabase.from("orders").insert({
       title,
       store_name: store,
       contact_name: contact,
-      created_by: user?.id ?? null,
-      created_by_name: profile?.display_name ?? null,
+      created_by_name: name,
     });
 
     setLoading(false);
