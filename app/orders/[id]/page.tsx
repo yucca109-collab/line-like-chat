@@ -35,6 +35,10 @@ export default function OrderDetailPage() {
   const [userName, setUserName] = useState("");
   const [input, setInput] = useState("");
 
+  const [otherTyping, setOtherTyping] = useState(false);
+const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
+
+  
   const loadAll = async () => {
     setErr("");
     setLoading(true);
