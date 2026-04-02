@@ -1,39 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const router = useRouter();
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     if (!name.trim()) {
       alert("名前を入力してください");
       return;
     }
 
-    if (!email.trim()) {
-      alert("メールを入力してください");
-      return;
-    }
+    // 名前を保存
+    localStorage.setItem("user_name", name);
 
-    // 名前を一時保存（←ここがミソ）
-    localStorage.setItem("pending_display_name", name);
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/orders`,
-      },
-    });
-
-    if (error) {
-      alert("エラー: " + error.message);
-      return;
-    }
-
-    alert("ログインリンクを送信しました！");
+    router.push("/orders");
   };
 
   return (
@@ -47,14 +30,8 @@ export default function LoginPage() {
           placeholder="スタッフ名"
         />
 
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="メールアドレス"
-        />
-
         <button onClick={handleLogin}>
-          ログインリンクを送る
+          ログイン
         </button>
       </div>
     </div>
