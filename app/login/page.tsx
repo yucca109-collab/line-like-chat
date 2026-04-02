@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const PASSCODE = "123456"; // 好きな共通コードに変更
+const PASSCODE = "123456";
 
 export default function LoginPage() {
   const [name, setName] = useState("");
@@ -20,10 +20,7 @@ export default function LoginPage() {
       alert("名前を入力してください");
       return;
     }
-    
-<p style={{ fontSize: 12, color: "#666" }}>
-  ※毎回同じ名前でログインしてください
-</p>
+
     if (password !== PASSCODE) {
       alert("パスコードが違います");
       return;
@@ -44,11 +41,19 @@ export default function LoginPage() {
           placeholder="スタッフ名"
         />
 
+        {/* 👇ここに書く */}
+        <p style={{ fontSize: 12, color: "#666" }}>
+          ※毎回同じ名前でログインしてください
+        </p>
+
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="パスコード"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleLogin();
+          }}
         />
 
         <button onClick={handleLogin}>ログイン</button>
