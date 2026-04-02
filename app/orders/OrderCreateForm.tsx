@@ -33,6 +33,7 @@ export default function OrderCreateForm({ onCreated }: Props) {
       store_name: store,
       contact_name: contact,
       created_by_name: name,
+      status: "new",
     });
 
     setLoading(false);
@@ -69,7 +70,7 @@ export default function OrderCreateForm({ onCreated }: Props) {
           placeholder="担当者"
         />
 
-        <button onClick={handleCreate} disabled={loading}>
+        <button type="button" onClick={handleCreate} disabled={loading}>
           {loading ? "作成中..." : "案件作成"}
         </button>
       </div>
