@@ -100,11 +100,32 @@ export default function OrderDetailPage() {
     loadAll();
   };
 
-  useEffect(() => {
-    if (!orderId) return;
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+useEffect(() => {
+  if (!orderId) return;
+  loadAll();
+
+  const channel = supabase
+    .channel("messages-realtime")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        filter: `order_id=eq.${orderId}`,
+      },
+      (payload) => {
+        const newMessage = payload.new as Message;
+
+        setMessages((prev) => [...prev, newMessage]);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [orderId]);
 
   return (
     <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
