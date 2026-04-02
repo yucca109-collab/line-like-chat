@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const PASSCODE = "1234"; // 好きな共通コードに変更
+const PASSCODE = "123456"; // 好きな共通コードに変更
 
 export default function LoginPage() {
   const [name, setName] = useState("");
