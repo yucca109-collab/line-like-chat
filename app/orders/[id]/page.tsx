@@ -36,9 +36,8 @@ export default function OrderDetailPage() {
   const [input, setInput] = useState("");
 
   const [otherTyping, setOtherTyping] = useState(false);
-const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [typingTimer, setTypingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  
   const loadAll = async () => {
     setErr("");
     setLoading(true);
@@ -79,6 +78,35 @@ const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
     setLoading(false);
   };
 
+  const updateTyping = async (isTyping: boolean) => {
+    const name = localStorage.getItem("user_name");
+    if (!name) return;
+
+    const { data: existing } = await supabase
+      .from("typing_status")
+      .select("id")
+      .eq("order_id", orderId)
+      .eq("user_name", name)
+      .maybeSingle();
+
+    if (existing?.id) {
+      await supabase
+        .from("typing_status")
+        .update({
+          is_typing: isTyping,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("typing_status").insert({
+        order_id: orderId,
+        user_name: name,
+        is_typing: isTyping,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  };
+
   const sendMessage = async () => {
     const content = input.trim();
     if (!content) return;
@@ -101,35 +129,77 @@ const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
     }
 
     setInput("");
+    await updateTyping(false);
     loadAll();
   };
 
-useEffect(() => {
-  if (!orderId) return;
-  loadAll();
+  // メッセージ realtime
+  useEffect(() => {
+    if (!orderId) return;
+    loadAll();
 
-  const channel = supabase
-    .channel("messages-realtime")
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-        filter: `order_id=eq.${orderId}`,
-      },
-      (payload) => {
-        const newMessage = payload.new as Message;
+    const channel = supabase
+      .channel("messages-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as Message;
 
-        setMessages((prev) => [...prev, newMessage]);
-      }
-    )
-    .subscribe();
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+        }
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [orderId]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
+
+  // typing realtime
+  useEffect(() => {
+    if (!orderId) return;
+
+    const name = localStorage.getItem("user_name");
+    if (!name) return;
+
+    const channel = supabase
+      .channel("typing-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "typing_status",
+          filter: `order_id=eq.${orderId}`,
+        },
+        async () => {
+          const { data } = await supabase
+            .from("typing_status")
+            .select("user_name,is_typing")
+            .eq("order_id", orderId);
+
+          const someoneTyping = (data ?? []).some(
+            (row) => row.user_name !== name && row.is_typing === true
+          );
+
+          setOtherTyping(someoneTyping);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
 
   return (
     <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
@@ -144,110 +214,51 @@ useEffect(() => {
         {order && (
           <div style={{ marginTop: 16 }}>
             <h1>{order.title}</h1>
-            <p>status: {order.status}</p>
-            <p>店舗名: {order.store_name || "未入力"}</p>
-            <p>担当者: {order.contact_name || "未入力"}</p>
-            <p>作成者: {order.created_by_name || "未入力"}</p>
-            <p>created: {new Date(order.created_at).toLocaleString()}</p>
 
             <hr style={{ margin: "24px 0" }} />
 
             <h2>チャット</h2>
 
-            <div
-              style={{
-                marginTop: 12,
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
-                height: 420,
-                overflowY: "auto",
-                background: "rgba(255,255,255,0.03)",
-              }}
-            >
-              {messages.length === 0 ? (
-                <p style={{ opacity: 0.7 }}>まだメッセージがありません</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {messages.map((m) => {
-                    const isMe = m.sender_name === userName;
+            <div style={{ height: 420, overflowY: "auto" }}>
+              {messages.map((m) => {
+                const isMe = m.sender_name === userName;
 
-                    return (
-                      <div
-                        key={m.id}
-                        style={{
-                          display: "flex",
-                          justifyContent: isMe ? "flex-end" : "flex-start",
-                        }}
-                      >
-                        <div style={{ maxWidth: "70%" }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              opacity: 0.6,
-                              marginBottom: 4,
-                              textAlign: isMe ? "right" : "left",
-                            }}
-                          >
-                            {m.sender_name} / {new Date(m.created_at).toLocaleString()}
-                          </div>
-
-                          <div
-                            style={{
-                              padding: "10px 12px",
-                              borderRadius: 16,
-                              lineHeight: 1.5,
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              background: isMe
-                                ? "rgba(34,197,94,0.25)"
-                                : "rgba(255,255,255,0.10)",
-                              border: "1px solid rgba(255,255,255,0.12)",
-                            }}
-                          >
-                            {m.content}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                return (
+                  <div key={m.id} style={{ textAlign: isMe ? "right" : "left" }}>
+                    <div>{m.sender_name}</div>
+                    <div>{m.content}</div>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* 👇 これが入力中 */}
+            {otherTyping && <p>入力中...</p>}
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 sendMessage();
               }}
-              style={{
-                marginTop: 12,
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-              }}
             >
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="メッセージを入力"
-                style={{
-                  flex: 1,
-                  minWidth: 240,
-                  padding: "12px 14px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(0,0,0,0.2)",
-                  color: "white",
-                  outline: "none",
+                onChange={(e) => {
+                  setInput(e.target.value);
+
+                  updateTyping(true);
+
+                  if (typingTimer) clearTimeout(typingTimer);
+
+                  const timer = setTimeout(() => {
+                    updateTyping(false);
+                  }, 1500);
+
+                  setTypingTimer(timer);
                 }}
               />
 
               <button type="submit">送信</button>
-
-              <button type="button" onClick={loadAll}>
-                再読み込み
-              </button>
             </form>
           </div>
         )}
