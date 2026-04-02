@@ -41,8 +41,7 @@ export default function LoginPage() {
           placeholder="スタッフ名"
         />
 
-        {/* 👇ここに書く */}
-        <p style={{ fontSize: 12, color: "#666" }}>
+        <p style={{ fontSize: 12, color: "#666", margin: 0 }}>
           ※毎回同じ名前でログインしてください
         </p>
 
@@ -52,11 +51,16 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="パスコード"
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleLogin();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleLogin();
+            }
           }}
         />
 
-        <button onClick={handleLogin}>ログイン</button>
+        <button type="button" onClick={handleLogin}>
+          ログイン
+        </button>
       </div>
     </div>
   );
