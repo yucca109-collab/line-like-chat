@@ -18,6 +18,7 @@ export default function LoginPage() {
       return;
     }
 
+    // 名前を一時保存（←ここがミソ）
     localStorage.setItem("pending_display_name", name);
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -28,11 +29,11 @@ export default function LoginPage() {
     });
 
     if (error) {
-      alert(error.message);
+      alert("エラー: " + error.message);
       return;
     }
 
-    alert("ログインメールを送信しました");
+    alert("ログインリンクを送信しました！");
   };
 
   return (
@@ -45,12 +46,16 @@ export default function LoginPage() {
           onChange={(e) => setName(e.target.value)}
           placeholder="スタッフ名"
         />
+
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="メールアドレス"
         />
-        <button onClick={handleLogin}>ログインリンクを送る</button>
+
+        <button onClick={handleLogin}>
+          ログインリンクを送る
+        </button>
       </div>
     </div>
   );
