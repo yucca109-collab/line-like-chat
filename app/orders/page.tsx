@@ -73,8 +73,6 @@ export default function OrdersPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!profile) {
-        const name = prompt("名前を入力してください");
 
         if (name) {
           await supabase.from("profiles").insert({
