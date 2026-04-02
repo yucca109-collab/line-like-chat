@@ -20,7 +20,10 @@ export default function LoginPage() {
       alert("名前を入力してください");
       return;
     }
-
+    
+<p style={{ fontSize: 12, color: "#666" }}>
+  ※毎回同じ名前でログインしてください
+</p>
     if (password !== PASSCODE) {
       alert("パスコードが違います");
       return;
