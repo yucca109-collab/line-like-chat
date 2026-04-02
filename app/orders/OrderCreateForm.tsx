@@ -1,116 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import OrderCreateForm from "./OrderCreateForm";
 
-type OrderRow = {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
+type Props = {
+  onCreated?: () => void;
 };
 
-export default function OrdersPage() {
-  const router = useRouter();
-  const [userName, setUserName] = useState<string>("");
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string>("");
+export default function OrderCreateForm({ onCreated }: Props) {
+  const [title, setTitle] = useState("");
+  const [store, setStore] = useState("");
+  const [contact, setContact] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const load = async () => {
-    setErr("");
+  const handleCreate = async () => {
+    if (!title.trim()) {
+      alert("案件名いれて！");
+      return;
+    }
+
+    const name = localStorage.getItem("user_name");
+
+    if (!name) {
+      alert("ログインし直してください");
+      return;
+    }
+
     setLoading(true);
-
-    const name = localStorage.getItem("user_name");
-
-    if (!name) {
-      router.push("/login");
-      return;
-    }
-
-    setUserName(name);
-
-    const { data, error } = await supabase
-      .from("orders")
-      .select("id,title,status,created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      setErr(error.message);
-    } else {
-      setOrders((data ?? []) as OrderRow[]);
-    }
-
-    setLoading(false);
-  };
-
-  const createDummy = async () => {
-    setErr("");
-    const title = `テスト案件 ${new Date().toLocaleString()}`;
-    const name = localStorage.getItem("user_name");
-
-    if (!name) {
-      router.push("/login");
-      return;
-    }
 
     const { error } = await supabase.from("orders").insert({
       title,
-      status: "new",
+      store_name: store,
+      contact_name: contact,
       created_by_name: name,
+      status: "new",
     });
 
+    setLoading(false);
+
     if (error) {
-      setErr(error.message);
-    } else {
-      load();
-    }
-  };
-
-  useEffect(() => {
-    const saved = localStorage.getItem("user_name");
-
-    if (!saved) {
-      router.push("/login");
+      alert("エラー: " + error.message);
       return;
     }
 
-    setUserName(saved);
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setTitle("");
+    setStore("");
+    setContact("");
+    onCreated?.();
+  };
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>案件一覧</h1>
-      <p>ログイン中: {userName}</p>
+    <div style={{ marginTop: 20, marginBottom: 24 }}>
+      <h2>案件作成</h2>
 
-      <OrderCreateForm onCreated={load} />
+      <div style={{ display: "grid", gap: 8, maxWidth: 420 }}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="案件名"
+        />
+        <input
+          value={store}
+          onChange={(e) => setStore(e.target.value)}
+          placeholder="店舗名"
+        />
+        <input
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+          placeholder="担当者"
+        />
 
-      <div style={{ marginTop: 16 }}>
-        <button type="button" onClick={createDummy}>
-          ＋ テスト案件を追加
-        </button>
-        <button type="button" onClick={load} style={{ marginLeft: 8 }}>
-          再読み込み
+        <button type="button" onClick={handleCreate} disabled={loading}>
+          {loading ? "作成中..." : "案件作成"}
         </button>
       </div>
-
-      {loading && <p style={{ marginTop: 16 }}>読み込み中...</p>}
-      {err && <p style={{ marginTop: 16, color: "tomato" }}>エラー: {err}</p>}
-
-      <ul style={{ marginTop: 16, lineHeight: 1.8 }}>
-        {orders.map((o) => (
-          <li key={o.id}>
-            <a href={`/orders/${o.id}`} style={{ textDecoration: "underline" }}>
-              <strong>{o.title}</strong>（{o.status}）{" "}
-              <small>{new Date(o.created_at).toLocaleString()}</small>
-            </a>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
