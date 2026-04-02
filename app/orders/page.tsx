@@ -23,23 +23,14 @@ export default function OrdersPage() {
     setErr("");
     setLoading(true);
 
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
+    const name = localStorage.getItem("user_name");
 
-    if (userErr || !user) {
+    if (!name) {
       router.push("/login");
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    setUserName(profile?.display_name || user.email || "");
+    setUserName(name);
 
     const { data, error } = await supabase
       .from("orders")
@@ -55,22 +46,17 @@ export default function OrdersPage() {
   const createDummy = async () => {
     setErr("");
     const title = `テスト案件 ${new Date().toLocaleString()}`;
+    const name = localStorage.getItem("user_name");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user?.id)
-      .maybeSingle();
+    if (!name) {
+      router.push("/login");
+      return;
+    }
 
     const { error } = await supabase.from("orders").insert({
       title,
       status: "new",
-      created_by: user?.id ?? null,
-      created_by_name: profile?.display_name ?? null,
+      created_by_name: name,
     });
 
     if (error) setErr(error.message);
@@ -78,33 +64,15 @@ export default function OrdersPage() {
   };
 
   useEffect(() => {
-    const init = async () => {
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
+    const name = localStorage.getItem("user_name");
 
-      if (userErr || !user) {
-        router.push("/login");
-        return;
-      }
+    if (!name) {
+      router.push("/login");
+      return;
+    }
 
-      const pendingName = localStorage.getItem("pending_display_name");
-
-      if (pendingName) {
-        await supabase.from("profiles").upsert({
-          id: user.id,
-          email: user.email,
-          display_name: pendingName,
-        });
-
-        localStorage.removeItem("pending_display_name");
-      }
-
-      await load();
-    };
-
-    init();
+    setUserName(name);
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
