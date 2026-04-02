@@ -1,108 +1,42 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import OrderCreateForm from "./OrderCreateForm";
 
-type OrderRow = {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
-};
-
-export default function OrdersPage() {
+export default function LoginPage() {
+  const [name, setName] = useState("");
   const router = useRouter();
-  const [userName, setUserName] = useState<string>("");
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string>("");
-
-  const load = async () => {
-    setErr("");
-    setLoading(true);
-
-    const name = localStorage.getItem("user_name");
-
-    if (!name) {
-      router.push("/login");
-      return;
-    }
-
-    setUserName(name);
-
-    const { data, error } = await supabase
-      .from("orders")
-      .select("id,title,status,created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) setErr(error.message);
-    else setOrders((data ?? []) as OrderRow[]);
-
-    setLoading(false);
-  };
-
-  const createDummy = async () => {
-    setErr("");
-    const title = `テスト案件 ${new Date().toLocaleString()}`;
-    const name = localStorage.getItem("user_name");
-
-    if (!name) {
-      router.push("/login");
-      return;
-    }
-
-    const { error } = await supabase.from("orders").insert({
-      title,
-      status: "new",
-      created_by_name: name,
-    });
-
-    if (error) setErr(error.message);
-    else load();
-  };
 
   useEffect(() => {
-    const name = localStorage.getItem("user_name");
+    const saved = localStorage.getItem("user_name");
+    if (saved) {
+      setName(saved);
+    }
+  }, []);
 
-    if (!name) {
-      router.push("/login");
+  const handleLogin = () => {
+    if (!name.trim()) {
+      alert("名前を入力してください");
       return;
     }
 
-    setUserName(name);
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    localStorage.setItem("user_name", name);
+    router.push("/orders");
+  };
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>案件一覧</h1>
-      <p>ログイン中: {userName}</p>
+      <h1>スタッフログイン</h1>
 
-      <OrderCreateForm onCreated={load} />
+      <div style={{ display: "grid", gap: 12, maxWidth: 360 }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="スタッフ名"
+        />
 
-      <div style={{ marginTop: 16 }}>
-        <button onClick={createDummy}>＋ テスト案件を追加</button>
-        <button onClick={load} style={{ marginLeft: 8 }}>
-          再読み込み
-        </button>
+        <button onClick={handleLogin}>ログイン</button>
       </div>
-
-      {loading && <p style={{ marginTop: 16 }}>読み込み中...</p>}
-      {err && <p style={{ marginTop: 16, color: "tomato" }}>エラー: {err}</p>}
-
-      <ul style={{ marginTop: 16, lineHeight: 1.8 }}>
-        {orders.map((o) => (
-          <li key={o.id}>
-            <a href={`/orders/${o.id}`} style={{ textDecoration: "underline" }}>
-              <strong>{o.title}</strong>（{o.status}）{" "}
-              <small>{new Date(o.created_at).toLocaleString()}</small>
-            </a>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
