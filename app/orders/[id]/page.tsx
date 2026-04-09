@@ -390,7 +390,7 @@ export default function OrderDetailPage() {
               <button
                 type="submit"
                 style={{
-                  background: "#22c55e",
+                  background: "#1a73e8",
                   color: "white",
                   border: "none",
                   borderRadius: 999,
