@@ -230,17 +230,28 @@ export default function OrderDetailPage() {
 
   return (
     <div
-  style={{
-    minHeight: "100vh",
-    background: "linear-gradient(#0f0f0f, #161616)",
-    color: "white",
-    display: "flex",
-    justifyContent: "center",
-    padding: 24,
-  }}
->
-     <div style={{ width: "100%", maxWidth: 760 }}>
-        <button type="button" onClick={() => router.push("/orders")}>
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(#0f0f0f, #161616)",
+        color: "white",
+        display: "flex",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 760 }}>
+        <button
+          type="button"
+          onClick={() => router.push("/orders")}
+          style={{
+            background: "transparent",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+            marginBottom: 20,
+            fontSize: 16,
+          }}
+        >
           ← 一覧へ
         </button>
 
@@ -249,16 +260,16 @@ export default function OrderDetailPage() {
 
         {order && (
           <div style={{ marginTop: 16 }}>
-            <h1>{order.title}</h1>
+            <h1 style={{ marginBottom: 12 }}>{order.title}</h1>
             <p>status: {order.status}</p>
             <p>店舗名: {order.store_name || "未入力"}</p>
             <p>担当者: {order.contact_name || "未入力"}</p>
             <p>作成者: {order.created_by_name || "未入力"}</p>
             <p>created: {new Date(order.created_at).toLocaleString()}</p>
 
-            <hr style={{ margin: "24px 0" }} />
+            <hr style={{ margin: "24px 0", borderColor: "rgba(255,255,255,0.12)" }} />
 
-            <h2>チャット</h2>
+            <h2 style={{ marginBottom: 12 }}>チャット</h2>
 
             <div
               ref={messagesBoxRef}
@@ -288,13 +299,15 @@ export default function OrderDetailPage() {
                           justifyContent: isMe ? "flex-end" : "flex-start",
                         }}
                       >
-                        style={{
-                         fontSize: 11,
-                         opacity: 0.55,
-                         marginBottom: 6,
-                         textAlign: isMe ? "right" : "left",
-                         letterSpacing: "0.02em",
-                       }}
+                        <div style={{ maxWidth: "60%" }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              opacity: 0.55,
+                              marginBottom: 6,
+                              textAlign: isMe ? "right" : "left",
+                              letterSpacing: "0.02em",
+                            }}
                           >
                             {m.sender_name} / {new Date(m.created_at).toLocaleString()}
                           </div>
@@ -389,18 +402,18 @@ export default function OrderDetailPage() {
                 送信
               </button>
 
-             <button
-              type="button"
-              onClick={loadAll}
-              style={{
-                background: "transparent",
-                color: "rgba(255,255,255,0.7)",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              再読み込み
-            </button>
+              <button
+                type="button"
+                onClick={loadAll}
+                style={{
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.7)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                再読み込み
+              </button>
             </form>
           </div>
         )}
