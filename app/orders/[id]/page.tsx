@@ -229,8 +229,17 @@ export default function OrderDetailPage() {
   }, [orderId]);
 
   return (
-    <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
-      <div style={{ width: "100%", maxWidth: 720 }}>
+    <div
+  style={{
+    minHeight: "100vh",
+    background: "linear-gradient(#0f0f0f, #161616)",
+    color: "white",
+    display: "flex",
+    justifyContent: "center",
+    padding: 24,
+  }}
+>
+     <div style={{ width: "100%", maxWidth: 760 }}>
         <button type="button" onClick={() => router.push("/orders")}>
           ← 一覧へ
         </button>
@@ -255,12 +264,13 @@ export default function OrderDetailPage() {
               ref={messagesBoxRef}
               style={{
                 marginTop: 12,
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
-                height: 420,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 24,
+                padding: 20,
+                height: 500,
                 overflowY: "auto",
-                background: "rgba(255,255,255,0.03)",
+                background: "rgba(255,255,255,0.04)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
               }}
             >
               {messages.length === 0 ? (
@@ -278,29 +288,27 @@ export default function OrderDetailPage() {
                           justifyContent: isMe ? "flex-end" : "flex-start",
                         }}
                       >
-                        <div style={{ maxWidth: "70%" }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              opacity: 0.6,
-                              marginBottom: 4,
-                              textAlign: isMe ? "right" : "left",
-                            }}
+                        style={{
+                         fontSize: 11,
+                         opacity: 0.55,
+                         marginBottom: 6,
+                         textAlign: isMe ? "right" : "left",
+                         letterSpacing: "0.02em",
+                       }}
                           >
                             {m.sender_name} / {new Date(m.created_at).toLocaleString()}
                           </div>
 
                           <div
                             style={{
-                              padding: "10px 12px",
-                              borderRadius: 16,
-                              lineHeight: 1.5,
+                              padding: "12px 16px",
+                              borderRadius: 22,
+                              lineHeight: 1.6,
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
-                              background: isMe
-                                ? "rgba(34,197,94,0.25)"
-                                : "rgba(255,255,255,0.10)",
-                              border: "1px solid rgba(255,255,255,0.12)",
+                              background: isMe ? "#1f6f3c" : "rgba(255,255,255,0.14)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
                             }}
                           >
                             {m.content}
@@ -357,20 +365,42 @@ export default function OrderDetailPage() {
                 style={{
                   flex: 1,
                   minWidth: 240,
-                  padding: "12px 14px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(0,0,0,0.2)",
+                  padding: "14px 18px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.06)",
                   color: "white",
                   outline: "none",
                 }}
               />
 
-              <button type="submit">送信</button>
-
-              <button type="button" onClick={loadAll}>
-                再読み込み
+              <button
+                type="submit"
+                style={{
+                  background: "#22c55e",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "12px 18px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                送信
               </button>
+
+             <button
+              type="button"
+              onClick={loadAll}
+              style={{
+                background: "transparent",
+                color: "rgba(255,255,255,0.7)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              再読み込み
+            </button>
             </form>
           </div>
         )}
