@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 
@@ -31,6 +31,7 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
   const orderId = params?.id as string;
+  const messagesBoxRef = useRef<HTMLDivElement | null>(null);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -94,7 +95,7 @@ export default function OrderDetailPage() {
 
     if (error) return;
 
-    const someoneTyping = (data as TypingRow[] | null ?? []).some(
+    const someoneTyping = ((data as TypingRow[] | null) ?? []).some(
       (row) => row.user_name !== name && row.is_typing === true
     );
 
@@ -161,6 +162,11 @@ export default function OrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
+  useEffect(() => {
+    if (!messagesBoxRef.current) return;
+    messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
+  }, [messages]);
+
   // メッセージ realtime
   useEffect(() => {
     if (!orderId) return;
@@ -207,11 +213,15 @@ export default function OrderDetailPage() {
           table: "typing_status",
           filter: `order_id=eq.${orderId}`,
         },
-        async () => {
-          await syncTypingState();
+        () => {
+          syncTypingState();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          syncTypingState();
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -242,6 +252,7 @@ export default function OrderDetailPage() {
             <h2>チャット</h2>
 
             <div
+              ref={messagesBoxRef}
               style={{
                 marginTop: 12,
                 border: "1px solid rgba(255,255,255,0.15)",
@@ -323,7 +334,14 @@ export default function OrderDetailPage() {
               <input
                 value={input}
                 onChange={(e) => {
-                  setInput(e.target.value);
+                  const value = e.target.value;
+                  setInput(value);
+
+                  if (!value.trim()) {
+                    updateTyping(false);
+                    if (typingTimer) clearTimeout(typingTimer);
+                    return;
+                  }
 
                   updateTyping(true);
 
