@@ -95,13 +95,14 @@ export default function OrderDetailPage() {
       .order("created_at", { ascending: true });
 
     if (msgErr) {
-      setErr(msgErr.message);
-    } else {
-      setMessages((msgData ?? []) as Message[]);
-    }
+  setErr(msgErr.message);
+} else {
+  setMessages((msgData ?? []) as Message[]);
+}
 
-    setLoading(false);
-  };
+setLoading(false);
+await markAsRead();
+};
 
   const syncTypingState = async () => {
     const name = localStorage.getItem("user_name");
@@ -158,6 +159,55 @@ export default function OrderDetailPage() {
     }
   };
 
+
+  const markAsRead = async () => {
+  const name = localStorage.getItem("user_name");
+  if (!name) return;
+
+  const now = new Date().toISOString();
+
+  const { data: existing, error: selectError } = await supabase
+    .from("order_reads")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("user_name", name)
+    .maybeSingle();
+
+  if (selectError) {
+    console.error("既読確認エラー:", selectError.message);
+    return;
+  }
+
+  if (existing?.id) {
+    const { error: updateError } = await supabase
+      .from("order_reads")
+      .update({
+        last_read_at: now,
+        updated_at: now,
+      })
+      .eq("id", existing.id);
+
+    if (updateError) {
+      console.error("既読更新エラー:", updateError.message);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("order_reads")
+      .insert({
+        order_id: orderId,
+        user_name: name,
+        last_read_at: now,
+        updated_at: now,
+      });
+
+    if (insertError) {
+      console.error("既読作成エラー:", insertError.message);
+    }
+  }
+};
+
+
+  
   const clearTypingTimer = () => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
