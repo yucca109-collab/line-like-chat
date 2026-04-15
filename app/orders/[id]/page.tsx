@@ -17,7 +17,8 @@ type Order = {
 type Message = {
   id: string;
   order_id: string;
-  content: string;
+  content: string | null;
+  image_url?: string | null;
   sender_name: string;
   created_at: string;
 };
@@ -40,6 +41,7 @@ export default function OrderDetailPage() {
 
   const [userName, setUserName] = useState("");
   const [input, setInput] = useState("");
+  const [file, setFile] = useState<File | null>(null);
 
   const [otherTyping, setOtherTyping] = useState(false);
   const [typingTimer, setTypingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +73,7 @@ export default function OrderDetailPage() {
 
     const { data: msgData, error: msgErr } = await supabase
       .from("messages")
-      .select("id,order_id,content,sender_name,created_at")
+      .select("id,order_id,content,image_url,sender_name,created_at")
       .eq("order_id", orderId)
       .order("created_at", { ascending: true });
 
@@ -133,7 +135,6 @@ export default function OrderDetailPage() {
 
   const sendMessage = async () => {
     const content = input.trim();
-    if (!content) return;
 
     const name = localStorage.getItem("user_name");
     if (!name) {
@@ -141,9 +142,35 @@ export default function OrderDetailPage() {
       return;
     }
 
+    let imageUrl: string | null = null;
+
+    if (file) {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `chat/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("chat-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        setErr(uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from("chat-images")
+        .getPublicUrl(filePath);
+
+      imageUrl = data.publicUrl;
+    }
+
+    if (!content && !imageUrl) return;
+
     const { error } = await supabase.from("messages").insert({
       order_id: orderId,
-      content,
+      content: content || null,
+      image_url: imageUrl,
       sender_name: name,
     });
 
@@ -153,6 +180,7 @@ export default function OrderDetailPage() {
     }
 
     setInput("");
+    setFile(null);
     await updateTyping(false);
   };
 
@@ -167,7 +195,6 @@ export default function OrderDetailPage() {
     messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
   }, [messages]);
 
-  // メッセージ realtime
   useEffect(() => {
     if (!orderId) return;
 
@@ -197,7 +224,6 @@ export default function OrderDetailPage() {
     };
   }, [orderId]);
 
-  // typing realtime
   useEffect(() => {
     if (!orderId) return;
 
@@ -324,7 +350,20 @@ export default function OrderDetailPage() {
                               boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
                             }}
                           >
-                            {m.content}
+                            {m.content && <div>{m.content}</div>}
+
+                            {m.image_url && (
+                              <img
+                                src={m.image_url}
+                                alt="送信画像"
+                                style={{
+                                  maxWidth: "200px",
+                                  borderRadius: 12,
+                                  marginTop: m.content ? 8 : 0,
+                                  display: "block",
+                                }}
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -384,6 +423,15 @@ export default function OrderDetailPage() {
                   background: "rgba(255,255,255,0.06)",
                   color: "white",
                   outline: "none",
+                }}
+              />
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setFile(f);
                 }}
               />
 
