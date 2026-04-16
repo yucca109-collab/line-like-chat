@@ -196,47 +196,51 @@ export default function OrdersPage() {
     setLoading(false);
   };
 
-  const createOrder = async () => {
-    setErr("");
+ const createOrder = async () => {
+  setErr("");
 
-    const name = localStorage.getItem("user_name");
-    if (!name) {
-      router.push("/login");
-      return;
-    }
+  const name = localStorage.getItem("user_name");
+  if (!name) {
+    router.push("/login");
+    return;
+  }
 
-    const title = newTitle.trim();
-    const storeName = newStoreName.trim();
-    const contactName = newContactName.trim();
+  const title = newTitle.trim();
+  const storeName = newStoreName.trim();
+  const contactName = newContactName.trim();
 
-    if (!title) {
-      setErr("依頼案件名を入力してください");
-      return;
-    }
+  if (!title) {
+    setErr("依頼案件名を入力してください");
+    return;
+  }
 
-    setCreating(true);
+  setCreating(true);
 
-    const { error } = await supabase.from("orders").insert({
+  const { data, error } = await supabase
+    .from("orders")
+    .insert({
       title,
       status: "進行中",
       store_name: storeName || null,
       contact_name: contactName || null,
       created_by_name: name,
-    });
+    })
+    .select()
+    .single();
 
-    setCreating(false);
+  setCreating(false);
 
-    if (error) {
-      setErr(error.message);
-      return;
-    }
+  if (error) {
+    setErr(error.message);
+    return;
+  }
 
-    setNewTitle("");
-    setNewStoreName("");
-    setNewContactName("");
+  // 案件作成後のidへ移行
+  router.push(`/orders/${data.id}`);
+};
 
-    await load();
-  };
+
+  
 
   const updateOrderStatus = async (orderId: string, nextStatus: "進行中" | "納品済み" | "アーカイブ") => {
     setErr("");
