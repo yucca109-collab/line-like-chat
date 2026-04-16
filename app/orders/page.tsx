@@ -456,7 +456,7 @@ export default function OrdersPage() {
               fontSize: "clamp(24px, 4vw, 20px)",
             }}
           >
-            案件一覧 メッセージで詳細を入力してください
+            案件一覧
           </h2>
         </div>
 
