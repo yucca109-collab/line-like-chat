@@ -156,8 +156,6 @@ export default function OrdersPage() {
 
     if (error) {
       setErr(error.message);
-    } else {
-      load();
     }
   };
 
@@ -175,52 +173,51 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
-  const saved = localStorage.getItem("user_name");
+    const saved = localStorage.getItem("user_name");
+    if (!saved) return;
 
-  if (!saved) return;
+    const channel = supabase
+      .channel("orders-list-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "orders",
+        },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "order_reads",
+        },
+        () => {
+          load();
+        }
+      )
+      .subscribe();
 
-  const channel = supabase
-    .channel("orders-list-realtime")
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "orders",
-      },
-      () => {
-        load();
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-      },
-      () => {
-        load();
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "order_reads",
-      },
-      () => {
-        load();
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -239,11 +236,7 @@ export default function OrdersPage() {
           margin: "0 auto",
         }}
       >
-        <div
-          style={{
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ marginBottom: 20 }}>
           <h1
             style={{
               margin: 0,
@@ -450,7 +443,7 @@ export default function OrdersPage() {
                         borderRadius: 999,
                         background: "#ef4444",
                         color: "white",
-                        fontSize: 6,
+                        fontSize: 12,
                         fontWeight: 800,
                         boxShadow: "0 6px 16px rgba(239,68,68,0.35)",
                         whiteSpace: "nowrap",
