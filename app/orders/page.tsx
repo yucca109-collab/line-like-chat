@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
@@ -26,10 +26,15 @@ type OrderReadRow = {
   last_read_at: string;
 };
 
+type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
+
+type SortMode = "新しい順" | "古い順" | "店舗名順";
+
 type OrderWithMeta = OrderRow & {
   latest_message_at: string | null;
   unread: boolean;
   unread_count: number;
+  display_status: DisplayStatus;
 };
 
 export default function OrdersPage() {
@@ -44,6 +49,50 @@ export default function OrdersPage() {
   const [newStoreName, setNewStoreName] = useState("");
   const [newContactName, setNewContactName] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"すべて" | DisplayStatus>("すべて");
+  const [sortMode, setSortMode] = useState<SortMode>("新しい順");
+
+  const getDisplayStatus = (status: string, createdAt: string): DisplayStatus => {
+    if (status === "納品済み") return "納品済み";
+    if (status === "アーカイブ") return "アーカイブ";
+
+    const created = new Date(createdAt).getTime();
+    const now = Date.now();
+    const diffHours = (now - created) / (1000 * 60 * 60);
+
+    if (diffHours < 24) return "新規";
+    return "進行中";
+  };
+
+  const getStatusColor = (displayStatus: DisplayStatus) => {
+    if (displayStatus === "新規") {
+      return {
+        bg: "#f59e0b",
+        shadow: "0 6px 16px rgba(245,158,11,0.28)",
+      };
+    }
+
+    if (displayStatus === "納品済み") {
+      return {
+        bg: "#22c55e",
+        shadow: "0 6px 16px rgba(34,197,94,0.25)",
+      };
+    }
+
+    if (displayStatus === "アーカイブ") {
+      return {
+        bg: "#6b7280",
+        shadow: "0 6px 16px rgba(107,114,128,0.25)",
+      };
+    }
+
+    return {
+      bg: "#3b82f6",
+      shadow: "0 6px 16px rgba(59,130,246,0.25)",
+    };
+  };
 
   const load = async () => {
     const name = localStorage.getItem("user_name");
@@ -119,7 +168,6 @@ export default function OrdersPage() {
     const merged: OrderWithMeta[] = baseOrders.map((order) => {
       const latestMessage = latestMessageMap.get(order.id);
       const readInfo = readMap.get(order.id);
-
       const orderMessages = messages.filter((msg) => msg.order_id === order.id);
 
       let unreadCount = 0;
@@ -140,6 +188,7 @@ export default function OrdersPage() {
         latest_message_at: latestMessage?.created_at ?? null,
         unread: unreadCount > 0,
         unread_count: unreadCount,
+        display_status: getDisplayStatus(order.status, order.created_at),
       };
     });
 
@@ -189,10 +238,8 @@ export default function OrdersPage() {
     await load();
   };
 
-  const toggleStatus = async (orderId: string, currentStatus: string) => {
+  const updateOrderStatus = async (orderId: string, nextStatus: "進行中" | "納品済み" | "アーカイブ") => {
     setErr("");
-
-    const nextStatus = currentStatus === "納品済み" ? "進行中" : "納品済み";
 
     const { error } = await supabase
       .from("orders")
@@ -206,7 +253,13 @@ export default function OrdersPage() {
 
     setOrders((prev) =>
       prev.map((order) =>
-        order.id === orderId ? { ...order, status: nextStatus } : order
+        order.id === orderId
+          ? {
+              ...order,
+              status: nextStatus,
+              display_status: getDisplayStatus(nextStatus, order.created_at),
+            }
+          : order
       )
     );
   };
@@ -272,6 +325,37 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const filteredOrders = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+
+    const list = orders.filter((o) => {
+      const matchesKeyword =
+        !keyword ||
+        (o.title ?? "").toLowerCase().includes(keyword) ||
+        (o.store_name ?? "").toLowerCase().includes(keyword) ||
+        (o.contact_name ?? "").toLowerCase().includes(keyword);
+
+      const matchesStatus =
+        statusFilter === "すべて" || o.display_status === statusFilter;
+
+      return matchesKeyword && matchesStatus;
+    });
+
+    list.sort((a, b) => {
+      if (sortMode === "古い順") {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+
+      if (sortMode === "店舗名順") {
+        return (a.store_name ?? "").localeCompare(b.store_name ?? "", "ja");
+      }
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return list;
+  }, [orders, searchKeyword, statusFilter, sortMode]);
 
   return (
     <div
@@ -449,20 +533,92 @@ export default function OrdersPage() {
           )}
         </div>
 
-        <div style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 16,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
           <h2
             style={{
               margin: 0,
-              fontSize: "clamp(24px, 4vw, 20px)",
+              fontSize: "clamp(24px, 4vw, 32px)",
             }}
           >
             案件一覧
           </h2>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="検索（店舗名・担当者名・案件名）"
+              style={{
+                minWidth: 260,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
+                outline: "none",
+                fontSize: 14,
+              }}
+            />
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "すべて" | DisplayStatus)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#1c1c1c",
+                color: "white",
+                fontSize: 14,
+                outline: "none",
+              }}
+            >
+              <option value="すべて">すべて</option>
+              <option value="新規">新規</option>
+              <option value="進行中">進行中</option>
+              <option value="納品済み">納品済み</option>
+              <option value="アーカイブ">アーカイブ</option>
+            </select>
+
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#1c1c1c",
+                color: "white",
+                fontSize: 14,
+                outline: "none",
+              }}
+            >
+              <option value="新しい順">新しい順</option>
+              <option value="古い順">古い順</option>
+              <option value="店舗名順">店舗名順</option>
+            </select>
+          </div>
         </div>
 
         {loading && <p style={{ marginTop: 16 }}>読み込み中...</p>}
 
-        {!loading && orders.length === 0 && (
+        {!loading && filteredOrders.length === 0 && (
           <div
             style={{
               marginTop: 18,
@@ -473,7 +629,7 @@ export default function OrdersPage() {
               color: "rgba(255,255,255,0.7)",
             }}
           >
-            まだ案件がありません
+            条件に合う案件がありません
           </div>
         )}
 
@@ -485,8 +641,8 @@ export default function OrdersPage() {
             gap: 14,
           }}
         >
-          {orders.map((o) => {
-            const isDone = o.status === "納品済み";
+          {filteredOrders.map((o) => {
+            const statusStyle = getStatusColor(o.display_status);
 
             return (
               <a
@@ -619,7 +775,18 @@ export default function OrdersPage() {
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
-                        toggleStatus(o.id, o.status);
+
+                        const nextStatus =
+                          o.status === "アーカイブ"
+                            ? "進行中"
+                            : o.status === "納品済み"
+                            ? "アーカイブ"
+                            : "納品済み";
+
+                        updateOrderStatus(
+                          o.id,
+                          nextStatus as "進行中" | "納品済み" | "アーカイブ"
+                        );
                       }}
                       style={{
                         border: "none",
@@ -627,15 +794,14 @@ export default function OrdersPage() {
                         padding: "10px 14px",
                         fontWeight: 800,
                         cursor: "pointer",
-                        background: isDone ? "#22c55e" : "#3b82f6",
+                        background: statusStyle.bg,
                         color: "white",
                         whiteSpace: "nowrap",
-                        boxShadow: isDone
-                          ? "0 6px 16px rgba(34,197,94,0.25)"
-                          : "0 6px 16px rgba(59,130,246,0.25)",
+                        boxShadow: statusStyle.shadow,
                       }}
+                      title="クリックで状態切り替え"
                     >
-                      {isDone ? "納品済み" : "進行中"}
+                      {o.display_status}
                     </button>
 
                     {o.unread_count > 0 && (
