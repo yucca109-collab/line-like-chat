@@ -453,10 +453,10 @@ export default function OrdersPage() {
           <h2
             style={{
               margin: 0,
-              fontSize: "clamp(24px, 4vw, 32px)",
+              fontSize: "clamp(24px, 4vw, 20px)",
             }}
           >
-            案件一覧
+            案件一覧 メッセージで詳細を入力してください
           </h2>
         </div>
 
