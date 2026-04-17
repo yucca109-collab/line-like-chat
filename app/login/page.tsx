@@ -95,18 +95,6 @@ export default function LoginPage() {
             社内用ページ
           </div>
 
-          <h1
-            style={{
-              fontSize: 32,
-              lineHeight: 1.3,
-              margin: 0,
-              color: "#0f172a",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            ご依頼ページへ入る
-          </h1>
-
           <p
             style={{
               marginTop: 12,
