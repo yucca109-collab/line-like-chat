@@ -219,24 +219,7 @@ export default function LoginPage() {
             ログインして案件一覧へ
           </button>
 
-          {mounted && name.trim() && (
-            <button
-              type="button"
-              onClick={handleContinue}
-              style={{
-                height: 48,
-                borderRadius: 14,
-                border: "1px solid #dbe2ea",
-                background: "#ffffff",
-                color: "#334155",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              前回の担当者名「{name.trim()}」で続ける
-            </button>
-          )}
+          
         </div>
       </div>
 
