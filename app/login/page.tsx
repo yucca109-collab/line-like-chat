@@ -34,185 +34,211 @@ export default function LoginPage() {
 
   const handleContinue = () => {
     if (!name.trim()) return;
+
+    if (password !== PASSCODE) {
+      alert("パスコードを入力してください");
+      return;
+    }
+
+    localStorage.setItem("user_name", name.trim());
     router.push("/orders");
   };
 
-  
-
-        <div
-          style={{
-            borderRadius: 28,
-            background: "#ffffff",
-            border: "1px solid #e5e7eb",
-            boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-            padding: 32,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            minHeight: 520,
-          }}
-        >
-          <div style={{ marginBottom: 24 }}>
-            <div
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f8fafc 0%, #eef2f7 50%, #e8edf5 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 560,
+          borderRadius: 28,
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+          padding: 32,
+        }}
+      >
+        <div style={{ marginBottom: 28 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 12px",
+              borderRadius: 999,
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              fontSize: 13,
+              color: "#475569",
+              fontWeight: 600,
+              marginBottom: 18,
+            }}
+          >
+            <span
               style={{
-                fontSize: 14,
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: "#22c55e",
+                display: "inline-block",
+              }}
+            />
+            社内用ページ
+          </div>
+
+          <h1
+            style={{
+              fontSize: 32,
+              lineHeight: 1.3,
+              margin: 0,
+              color: "#0f172a",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            ご依頼ページへ入る
+          </h1>
+
+          <p
+            style={{
+              marginTop: 12,
+              marginBottom: 0,
+              fontSize: 15,
+              lineHeight: 1.8,
+              color: "#64748b",
+            }}
+          >
+            担当者名とパスコードを入力して、案件一覧へ進みます。
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 13,
                 fontWeight: 700,
-                color: "#64748b",
+                color: "#334155",
                 marginBottom: 8,
               }}
             >
-              ENTRY
-            </div>
-            <h2
+              スタッフ名
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例：山田 / 田中 / yucca"
               style={{
-                fontSize: 28,
-                lineHeight: 1.3,
-                margin: 0,
-                color: "#0f172a",
-                letterSpacing: "-0.02em",
+                width: "100%",
+                height: 52,
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                padding: "0 16px",
+                fontSize: 15,
+                outline: "none",
+                background: "#f8fafc",
+                boxSizing: "border-box",
               }}
-            >
-              担当者情報を入力
-            </h2>
+            />
             <p
               style={{
-                marginTop: 10,
-                marginBottom: 0,
-                fontSize: 14,
-                lineHeight: 1.8,
+                fontSize: 12,
                 color: "#64748b",
+                margin: "8px 0 0",
+                lineHeight: 1.6,
               }}
             >
-              必要な項目だけ入力して、案件一覧へ進みます。
+              ※ 毎回同じ名前でログインしてください
             </p>
           </div>
 
-          <div style={{ display: "grid", gap: 16 }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#334155",
-                  marginBottom: 8,
-                }}
-              >
-                スタッフ名
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="例：山田 / 田中 / yucca"
-                style={{
-                  width: "100%",
-                  height: 52,
-                  borderRadius: 14,
-                  border: "1px solid #dbe2ea",
-                  padding: "0 16px",
-                  fontSize: 15,
-                  outline: "none",
-                  background: "#f8fafc",
-                  boxSizing: "border-box",
-                }}
-              />
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  margin: "8px 0 0",
-                  lineHeight: 1.6,
-                }}
-              >
-                ※ 毎回同じ名前でログインしてください
-              </p>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#334155",
-                  marginBottom: 8,
-                }}
-              >
-                パスコード
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="パスコードを入力"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleLogin();
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  height: 52,
-                  borderRadius: 14,
-                  border: "1px solid #dbe2ea",
-                  padding: "0 16px",
-                  fontSize: 15,
-                  outline: "none",
-                  background: "#f8fafc",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleLogin}
+          <div>
+            <label
               style={{
-                marginTop: 4,
-                height: 54,
-                border: "none",
-                borderRadius: 16,
-                background: "#111827",
-                color: "#ffffff",
-                fontSize: 15,
+                display: "block",
+                fontSize: 13,
                 fontWeight: 700,
-                cursor: "pointer",
-                boxShadow: "0 10px 24px rgba(17,24,39,0.18)",
+                color: "#334155",
+                marginBottom: 8,
               }}
             >
-              ログインして案件一覧へ
-            </button>
-
-            {mounted && name.trim() && (
-              <button
-                type="button"
-                onClick={handleContinue}
-                style={{
-                  height: 48,
-                  borderRadius: 14,
-                  border: "1px solid #dbe2ea",
-                  background: "#ffffff",
-                  color: "#334155",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                前回の担当者名「{name.trim()}」で続ける
-              </button>
-            )}
+              パスコード
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="パスコードを入力"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleLogin();
+                }
+              }}
+              style={{
+                width: "100%",
+                height: 52,
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                padding: "0 16px",
+                fontSize: 15,
+                outline: "none",
+                background: "#f8fafc",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogin}
+            style={{
+              marginTop: 4,
+              height: 54,
+              border: "none",
+              borderRadius: 16,
+              background: "#111827",
+              color: "#ffffff",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 10px 24px rgba(17,24,39,0.18)",
+            }}
+          >
+            ログインして案件一覧へ
+          </button>
+
+          {mounted && name.trim() && (
+            <button
+              type="button"
+              onClick={handleContinue}
+              style={{
+                height: 48,
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#ffffff",
+                color: "#334155",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              前回の担当者名「{name.trim()}」で続ける
+            </button>
+          )}
         </div>
       </div>
 
       <style jsx>{`
-        @media (max-width: 860px) {
-          div[style*="grid-template-columns: 1.1fr 0.9fr"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
         input:focus {
           border-color: #94a3b8 !important;
           background: #ffffff !important;
