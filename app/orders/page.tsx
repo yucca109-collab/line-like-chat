@@ -1,1 +1,916 @@
-7f35d7154865585aac492100d79c5be4db464c99
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+
+type OrderRow = {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  store_name: string | null;
+  contact_name: string | null;
+};
+
+type MessageRow = {
+  id: string;
+  order_id: string;
+  created_at: string;
+  sender_name: string;
+};
+
+type OrderReadRow = {
+  order_id: string;
+  user_name: string;
+  last_read_at: string;
+};
+
+type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
+type SortMode = "新しい順" | "古い順" | "店舗名順";
+
+type OrderWithMeta = OrderRow & {
+  latest_message_at: string | null;
+  unread: boolean;
+  unread_count: number;
+  display_status: DisplayStatus;
+};
+
+export default function OrdersPage() {
+  const router = useRouter();
+
+  const [userName, setUserName] = useState("");
+  const [orders, setOrders] = useState<OrderWithMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  const [newTitle, setNewTitle] = useState("");
+  const [newStoreName, setNewStoreName] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"すべて" | DisplayStatus>("すべて");
+  const [sortMode, setSortMode] = useState<SortMode>("新しい順");
+
+  const getDisplayStatus = (status: string): DisplayStatus => {
+    if (
+      status === "新規" ||
+      status === "進行中" ||
+      status === "納品済み" ||
+      status === "アーカイブ"
+    ) {
+      return status;
+    }
+
+    return "進行中";
+  };
+
+  const getStatusColor = (displayStatus: DisplayStatus) => {
+    if (displayStatus === "新規") {
+      return {
+        bg: "#f59e0b",
+        text: "#ffffff",
+        shadow: "0 8px 20px rgba(245,158,11,0.22)",
+      };
+    }
+
+    if (displayStatus === "納品済み") {
+      return {
+        bg: "#22c55e",
+        text: "#ffffff",
+        shadow: "0 8px 20px rgba(34,197,94,0.2)",
+      };
+    }
+
+    if (displayStatus === "アーカイブ") {
+      return {
+        bg: "#6b7280",
+        text: "#ffffff",
+        shadow: "0 8px 20px rgba(107,114,128,0.18)",
+      };
+    }
+
+    return {
+      bg: "#3b82f6",
+      text: "#ffffff",
+      shadow: "0 8px 20px rgba(59,130,246,0.2)",
+    };
+  };
+
+  const load = async () => {
+    const name = localStorage.getItem("user_name");
+    if (!name) {
+      router.push("/login");
+      return;
+    }
+
+    setUserName(name);
+    setErr("");
+    setLoading(true);
+
+    const { data: orderData, error: orderError } = await supabase
+      .from("orders")
+      .select("id,title,status,created_at,store_name,contact_name")
+      .order("created_at", { ascending: false });
+
+    if (orderError) {
+      setErr(orderError.message);
+      setLoading(false);
+      return;
+    }
+
+    const baseOrders = (orderData ?? []) as OrderRow[];
+
+    if (baseOrders.length === 0) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    const orderIds = baseOrders.map((o) => o.id);
+
+    const { data: messageData, error: messageError } = await supabase
+      .from("messages")
+      .select("id,order_id,created_at,sender_name")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false });
+
+    if (messageError) {
+      setErr(messageError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: readData, error: readError } = await supabase
+      .from("order_reads")
+      .select("order_id,user_name,last_read_at")
+      .eq("user_name", name)
+      .in("order_id", orderIds);
+
+    if (readError) {
+      setErr(readError.message);
+      setLoading(false);
+      return;
+    }
+
+    const messages = (messageData ?? []) as MessageRow[];
+    const reads = (readData ?? []) as OrderReadRow[];
+
+    const latestMessageMap = new Map<string, MessageRow>();
+    for (const msg of messages) {
+      if (!latestMessageMap.has(msg.order_id)) {
+        latestMessageMap.set(msg.order_id, msg);
+      }
+    }
+
+    const readMap = new Map<string, OrderReadRow>();
+    for (const read of reads) {
+      readMap.set(read.order_id, read);
+    }
+
+    const merged: OrderWithMeta[] = baseOrders.map((order) => {
+      const latestMessage = latestMessageMap.get(order.id);
+      const readInfo = readMap.get(order.id);
+      const orderMessages = messages.filter((msg) => msg.order_id === order.id);
+
+      let unreadCount = 0;
+
+      if (!readInfo) {
+        unreadCount = orderMessages.filter((msg) => msg.sender_name !== name).length;
+      } else {
+        unreadCount = orderMessages.filter(
+          (msg) =>
+            msg.sender_name !== name &&
+            new Date(msg.created_at).getTime() >
+              new Date(readInfo.last_read_at).getTime()
+        ).length;
+      }
+
+      return {
+        ...order,
+        latest_message_at: latestMessage?.created_at ?? null,
+        unread: unreadCount > 0,
+        unread_count: unreadCount,
+        display_status: getDisplayStatus(order.status),
+      };
+    });
+
+    setOrders(merged);
+    setLoading(false);
+  };
+
+  const createOrder = async () => {
+    setErr("");
+
+    const name = localStorage.getItem("user_name");
+    if (!name) {
+      router.push("/login");
+      return;
+    }
+
+    const title = newTitle.trim();
+    const storeName = newStoreName.trim();
+    const contactName = newContactName.trim();
+
+    if (!title) {
+      setErr("依頼案件名を入力してください");
+      return;
+    }
+
+    setCreating(true);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        title,
+        status: "新規",
+        store_name: storeName || null,
+        contact_name: contactName || null,
+        created_by_name: name,
+      })
+      .select()
+      .single();
+
+    setCreating(false);
+
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    setNewTitle("");
+    setNewStoreName("");
+    setNewContactName("");
+
+    router.push(`/orders/${data.id}`);
+  };
+
+  const updateOrderStatus = async (
+    orderId: string,
+    nextStatus: "新規" | "進行中" | "納品済み" | "アーカイブ"
+  ) => {
+    setErr("");
+
+    const { data, error } = await supabase
+      .from("orders")
+      .update({ status: nextStatus })
+      .eq("id", orderId)
+      .select("id,status")
+      .single();
+
+    if (error) {
+      setErr(`ステータス更新エラー: ${error.message}`);
+      return;
+    }
+
+    if (!data) {
+      setErr("ステータス更新後のデータ取得に失敗しました");
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === orderId
+          ? {
+              ...order,
+              status: data.status,
+              display_status: getDisplayStatus(data.status),
+            }
+          : order
+      )
+    );
+
+    await load();
+  };
+
+  const logout = () => {
+    router.push("/login");
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem("user_name");
+
+    if (!saved) {
+      router.push("/login");
+      return;
+    }
+
+    setUserName(saved);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("user_name");
+    if (!saved) return;
+
+    const channel = supabase
+      .channel("orders-list-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_reads" },
+        () => {
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      load();
+    }, 20000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filteredOrders = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+
+    const list = orders.filter((o) => {
+      const matchesKeyword =
+        !keyword ||
+        (o.title ?? "").toLowerCase().includes(keyword) ||
+        (o.store_name ?? "").toLowerCase().includes(keyword) ||
+        (o.contact_name ?? "").toLowerCase().includes(keyword);
+
+      const matchesStatus =
+        statusFilter === "すべて" || o.display_status === statusFilter;
+
+      return matchesKeyword && matchesStatus;
+    });
+
+    list.sort((a, b) => {
+      if (sortMode === "古い順") {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+
+      if (sortMode === "店舗名順") {
+        return (a.store_name ?? "").localeCompare(b.store_name ?? "", "ja");
+      }
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return list;
+  }, [orders, searchKeyword, statusFilter, sortMode]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f8fafc 0%, #eef2f7 50%, #e8edf5 100%)",
+        color: "#0f172a",
+        padding: 24,
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 1040,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 18,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 15,
+              color: "#475569",
+              fontWeight: 600,
+            }}
+          >
+            ログイン中：{userName}
+          </div>
+
+          <button
+            type="button"
+            onClick={logout}
+            style={{
+              background: "#ffffff",
+              color: "#334155",
+              border: "1px solid #e5e7eb",
+              borderRadius: 999,
+              padding: "10px 16px",
+              cursor: "pointer",
+              fontWeight: 700,
+              boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
+            }}
+          >
+            ログアウト
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 28,
+            padding: 24,
+            boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+            marginBottom: 24,
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              marginBottom: 18,
+              fontSize: "clamp(24px, 4vw, 32px)",
+              color: "#0f172a",
+            }}
+          >
+            新規依頼作成
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="依頼案件名"
+              style={{
+                padding: "14px 16px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#f8fafc",
+                color: "#334155",
+                outline: "none",
+                fontSize: 15,
+              }}
+            />
+
+            <input
+              value={newStoreName}
+              onChange={(e) => setNewStoreName(e.target.value)}
+              placeholder="店舗名"
+              style={{
+                padding: "14px 16px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#f8fafc",
+                color: "#334155",
+                outline: "none",
+                fontSize: 15,
+              }}
+            />
+
+            <input
+              value={newContactName}
+              onChange={(e) => setNewContactName(e.target.value)}
+              placeholder="担当者名"
+              style={{
+                padding: "14px 16px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#f8fafc",
+                color: "#334155",
+                outline: "none",
+                fontSize: 15,
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              marginTop: 16,
+            }}
+          >
+            <button
+              type="button"
+              onClick={createOrder}
+              disabled={creating}
+              style={{
+                background: "#111827",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 16,
+                padding: "12px 18px",
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: creating ? 0.7 : 1,
+                boxShadow: "0 10px 24px rgba(17,24,39,0.18)",
+              }}
+            >
+              {creating ? "作成中..." : "案件作成"}
+            </button>
+
+            <button
+              type="button"
+              onClick={load}
+              style={{
+                background: "#ffffff",
+                color: "#334155",
+                border: "1px solid #e5e7eb",
+                borderRadius: 16,
+                padding: "12px 18px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              再読み込み
+            </button>
+          </div>
+
+          {err && (
+            <p
+              style={{
+                marginTop: 14,
+                color: "#dc2626",
+                marginBottom: 0,
+                fontSize: 14,
+              }}
+            >
+              エラー: {err}
+            </p>
+          )}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 16,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "clamp(24px, 4vw, 32px)",
+              color: "#0f172a",
+            }}
+          >
+            案件一覧
+          </h2>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="検索（店舗名・担当者名・案件名）"
+              style={{
+                minWidth: 260,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#f8fafc",
+                color: "#334155",
+                outline: "none",
+                fontSize: 14,
+              }}
+            />
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "すべて" | DisplayStatus)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#ffffff",
+                color: "#334155",
+                fontSize: 14,
+                outline: "none",
+              }}
+            >
+              <option value="すべて">すべて</option>
+              <option value="新規">新規</option>
+              <option value="進行中">進行中</option>
+              <option value="納品済み">納品済み</option>
+              <option value="アーカイブ">アーカイブ</option>
+            </select>
+
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid #dbe2ea",
+                background: "#ffffff",
+                color: "#334155",
+                fontSize: 14,
+                outline: "none",
+              }}
+            >
+              <option value="新しい順">新しい順</option>
+              <option value="古い順">古い順</option>
+              <option value="店舗名順">店舗名順</option>
+            </select>
+          </div>
+        </div>
+
+        {loading && (
+          <p style={{ marginTop: 16, color: "#475569" }}>
+            読み込み中...
+          </p>
+        )}
+
+        {!loading && filteredOrders.length === 0 && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 24,
+              borderRadius: 20,
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              color: "#64748b",
+              boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+            }}
+          >
+            条件に合う案件がありません
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+          {filteredOrders.map((o) => {
+            const statusStyle = getStatusColor(o.display_status);
+
+            return (
+              <a
+                key={o.id}
+                href={`/orders/${o.id}`}
+                style={{
+                  display: "block",
+                  textDecoration: "none",
+                  color: "#0f172a",
+                  background: "#ffffff",
+                  border: o.unread
+                    ? "1px solid rgba(59,130,246,0.36)"
+                    : "1px solid #e5e7eb",
+                  borderRadius: 24,
+                  padding: 20,
+                  boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+                  position: "relative",
+                }}
+              >
+                {o.unread && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 18,
+                      bottom: 18,
+                      width: 4,
+                      borderRadius: "0 999px 999px 0",
+                      background: "#3b82f6",
+                    }}
+                  />
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    style={{
+                      minWidth: 0,
+                      flex: 1,
+                      paddingLeft: o.unread ? 10 : 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: 12,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginBottom: 4,
+                            fontWeight: 600,
+                          }}
+                        >
+                          担当者名
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {o.contact_name || "未入力"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginBottom: 4,
+                            fontWeight: 600,
+                          }}
+                        >
+                          依頼案件名
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {o.title}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginBottom: 4,
+                            fontWeight: 600,
+                          }}
+                        >
+                          店舗名
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {o.store_name || "未入力"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: "#64748b",
+                      }}
+                    >
+                      最新メッセージ：
+                      {o.latest_message_at
+                        ? new Date(o.latest_message_at).toLocaleString()
+                        : "まだありません"}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+
+                        const nextStatus =
+                          o.status === "新規"
+                            ? "進行中"
+                            : o.status === "進行中"
+                            ? "納品済み"
+                            : o.status === "納品済み"
+                            ? "アーカイブ"
+                            : "進行中";
+
+                        updateOrderStatus(
+                          o.id,
+                          nextStatus as "新規" | "進行中" | "納品済み" | "アーカイブ"
+                        );
+                      }}
+                      style={{
+                        border: "none",
+                        borderRadius: 999,
+                        padding: "10px 14px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        background: statusStyle.bg,
+                        color: statusStyle.text,
+                        whiteSpace: "nowrap",
+                        boxShadow: statusStyle.shadow,
+                      }}
+                      title="クリックで状態切り替え"
+                    >
+                      {o.display_status}
+                    </button>
+
+                    {o.unread_count > 0 && (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minWidth: 28,
+                          height: 28,
+                          padding: o.unread_count >= 10 ? "0 8px" : "0 0",
+                          borderRadius: 999,
+                          background: "#ef4444",
+                          color: "#ffffff",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          boxShadow: "0 6px 16px rgba(239,68,68,0.28)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {o.unread_count > 99 ? "99+" : o.unread_count}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+
+      <style jsx>{`
+        input:focus,
+        select:focus {
+          border-color: #94a3b8 !important;
+          background: #ffffff !important;
+          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
+        }
+
+        button:hover {
+          opacity: 0.96;
+          transform: translateY(-1px);
+          transition: 0.2s ease;
+        }
+
+        a:hover {
+          transform: translateY(-1px);
+          transition: 0.2s ease;
+        }
+      `}</style>
+    </div>
+  );
+}
