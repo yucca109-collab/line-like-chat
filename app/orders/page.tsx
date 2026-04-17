@@ -255,13 +255,20 @@ const getDisplayStatus = (status: string): DisplayStatus => {
 ) => {
   setErr("");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .update({ status: nextStatus })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .select("id,status,created_at")
+    .single();
 
   if (error) {
-    setErr(error.message);
+    setErr(`ステータス更新エラー: ${error.message}`);
+    return;
+  }
+
+  if (!data) {
+    setErr("ステータス更新後のデータが取得できませんでした");
     return;
   }
 
@@ -270,13 +277,17 @@ const getDisplayStatus = (status: string): DisplayStatus => {
       order.id === orderId
         ? {
             ...order,
-            status: nextStatus,
-            display_status: getDisplayStatus(nextStatus),
+            status: data.status,
+            display_status: getDisplayStatus(data.status),
           }
         : order
     )
   );
+
+  await load();
 };
+
+  
 
   
   const logout = () => {
