@@ -269,7 +269,6 @@ export default function OrdersPage() {
   };
 
   const logout = () => {
-    localStorage.removeItem("user_name");
     router.push("/login");
   };
 
