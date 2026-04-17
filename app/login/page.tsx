@@ -195,6 +195,7 @@ export default function LoginPage() {
                 outline: "none",
                 background: "#f8fafc",
                 boxSizing: "border-box",
+                color: "#64748b",
               }}
             />
           </div>
