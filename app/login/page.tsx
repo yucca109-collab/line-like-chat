@@ -97,7 +97,6 @@ export default function LoginPage() {
 
           <p
             style={{
-              marginTop: -10px,
               marginBottom: 0,
               fontSize: 15,
               lineHeight: 1.8,
