@@ -54,17 +54,24 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<"すべて" | DisplayStatus>("すべて");
   const [sortMode, setSortMode] = useState<SortMode>("新しい順");
 
-  const getDisplayStatus = (status: string, createdAt: string): DisplayStatus => {
-    if (status === "納品済み") return "納品済み";
-    if (status === "アーカイブ") return "アーカイブ";
+  
 
-    const created = new Date(createdAt).getTime();
-    const now = Date.now();
-    const diffHours = (now - created) / (1000 * 60 * 60);
+  type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
 
-    if (diffHours < 24) return "新規";
-    return "進行中";
-  };
+const getDisplayStatus = (status: string): DisplayStatus => {
+  if (
+    status === "新規" ||
+    status === "進行中" ||
+    status === "納品済み" ||
+    status === "アーカイブ"
+  ) {
+    return status;
+  }
+
+  return "進行中";
+};
+
+  
 
   const getStatusColor = (displayStatus: DisplayStatus) => {
     if (displayStatus === "新規") {
@@ -217,16 +224,16 @@ export default function OrdersPage() {
   setCreating(true);
 
   const { data, error } = await supabase
-    .from("orders")
-    .insert({
-      title,
-      status: "進行中",
-      store_name: storeName || null,
-      contact_name: contactName || null,
-      created_by_name: name,
-    })
-    .select()
-    .single();
+  .from("orders")
+  .insert({
+    title,
+    status: "新規",
+    store_name: storeName || null,
+    contact_name: contactName || null,
+    created_by_name: name,
+  })
+  .select()
+  .single();
 
   setCreating(false);
 
@@ -242,32 +249,36 @@ export default function OrdersPage() {
 
   
 
-  const updateOrderStatus = async (orderId: string, nextStatus: "進行中" | "納品済み" | "アーカイブ") => {
-    setErr("");
+  const updateOrderStatus = async (
+  orderId: string,
+  nextStatus: "新規" | "進行中" | "納品済み" | "アーカイブ"
+) => {
+  setErr("");
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: nextStatus })
-      .eq("id", orderId);
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: nextStatus })
+    .eq("id", orderId);
 
-    if (error) {
-      setErr(error.message);
-      return;
-    }
+  if (error) {
+    setErr(error.message);
+    return;
+  }
 
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              status: nextStatus,
-              display_status: getDisplayStatus(nextStatus, order.created_at),
-            }
-          : order
-      )
-    );
-  };
+  setOrders((prev) =>
+    prev.map((order) =>
+      order.id === orderId
+        ? {
+            ...order,
+            status: nextStatus,
+            display_status: getDisplayStatus(nextStatus),
+          }
+        : order
+    )
+  );
+};
 
+  
   const logout = () => {
     router.push("/login");
   };
