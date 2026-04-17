@@ -136,7 +136,7 @@ export default function LoginPage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例：山田 / 田中 / yucca"
+              placeholder="例：山田太郎 "
               style={{
                 width: "100%",
                 height: 52,
@@ -147,6 +147,7 @@ export default function LoginPage() {
                 outline: "none",
                 background: "#f8fafc",
                 boxSizing: "border-box",
+                color: "#64748b",
               }}
             />
             <p
