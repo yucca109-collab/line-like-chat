@@ -94,7 +94,7 @@ export default function OrderDetailPage() {
       return {
         bg: "#f59e0b",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(245,158,11,0.22)",
+        shadow: "0 6px 16px rgba(245,158,11,0.18)",
       };
     }
 
@@ -102,7 +102,7 @@ export default function OrderDetailPage() {
       return {
         bg: "#22c55e",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(34,197,94,0.20)",
+        shadow: "0 6px 16px rgba(34,197,94,0.16)",
       };
     }
 
@@ -110,14 +110,14 @@ export default function OrderDetailPage() {
       return {
         bg: "#6b7280",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(107,114,128,0.18)",
+        shadow: "0 6px 16px rgba(107,114,128,0.16)",
       };
     }
 
     return {
       bg: "#3b82f6",
       text: "#ffffff",
-      shadow: "0 8px 20px rgba(59,130,246,0.20)",
+      shadow: "0 6px 16px rgba(59,130,246,0.16)",
     };
   };
 
@@ -561,8 +561,7 @@ export default function OrderDetailPage() {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f8fafc 0%, #eef2f7 50%, #e8edf5 100%)",
+        background: "linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%)",
         color: "#0f172a",
         padding: 24,
         boxSizing: "border-box",
@@ -571,7 +570,7 @@ export default function OrderDetailPage() {
       <div
         style={{
           width: "100%",
-          maxWidth: 980,
+          maxWidth: 1040,
           margin: "0 auto",
         }}
       >
@@ -641,111 +640,63 @@ export default function OrderDetailPage() {
               style={{
                 background: "#ffffff",
                 border: "1px solid #e5e7eb",
-                borderRadius: 28,
-                padding: 24,
+                borderRadius: 36,
+                padding: "24px 24px 20px",
                 boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
                 marginBottom: 20,
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "#64748b",
-                      marginBottom: 8,
-                      letterSpacing: "0.04em",
-                      fontWeight: 700,
-                    }}
-                  >
-                    ORDER DETAIL
-                  </div>
+              <div className="detailTop">
+                <div className="detailMain">
+                  <div className="detailLabelHead">ORDER DETAIL</div>
+                  <h1 className="detailTitle">{order.title}</h1>
 
-                  <h1
-                    style={{
-                      margin: 0,
-                      fontSize: "clamp(24px, 4vw, 34px)",
-                      lineHeight: 1.25,
-                      wordBreak: "break-word",
-                      color: "#0f172a",
-                    }}
-                  >
-                    {order.title}
-                  </h1>
-                </div>
-
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 999,
-                    background: statusStyle.bg,
-                    color: statusStyle.text,
-                    fontWeight: 800,
-                    whiteSpace: "nowrap",
-                    boxShadow: statusStyle.shadow,
-                  }}
-                >
-                  {currentStatus}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                  marginTop: 18,
-                  marginBottom: 14,
-                }}
-              >
-                {[
-                  { label: "店舗名", value: order.store_name || "未入力" },
-                  { label: "担当者", value: order.contact_name || "未入力" },
-                  { label: "作成者", value: order.created_by_name || "未入力" },
-                  {
-                    label: "作成日時",
-                    value: new Date(order.created_at).toLocaleString(),
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    style={{
-                      padding: "14px 16px",
-                      borderRadius: 18,
-                      background: "#f8fafc",
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        marginBottom: 6,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {item.label}
+                  <div className="detailInfoGrid">
+                    <div>
+                      <div className="detailMiniLabel">店舗名</div>
+                      <div className="detailMiniValue">{order.store_name || "未入力"}</div>
                     </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: "#0f172a",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {item.value}
+
+                    <div className="detailDividerBlock">
+                      <div className="detailMiniLabel">依頼者名</div>
+                      <div className="detailMiniValue">{order.contact_name || "未入力"}</div>
+                    </div>
+
+                    <div className="detailDividerBlock">
+                      <div className="detailMiniLabel">作成者</div>
+                      <div className="detailMiniValue">{order.created_by_name || "未入力"}</div>
+                    </div>
+
+                    <div className="detailDividerBlock">
+                      <div className="detailMiniLabel">作成日時</div>
+                      <div className="detailMiniValue">
+                        {new Date(order.created_at).toLocaleString("ja-JP")}
+                      </div>
                     </div>
                   </div>
-                ))}
+                </div>
+
+                <div className="detailStatusWrap">
+                  <div
+                    style={{
+                      minWidth: 118,
+                      height: 44,
+                      borderRadius: 999,
+                      padding: "0 18px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: statusStyle.bg,
+                      color: statusStyle.text,
+                      fontWeight: 900,
+                      fontSize: 14,
+                      whiteSpace: "nowrap",
+                      boxShadow: statusStyle.shadow,
+                    }}
+                  >
+                    {currentStatus}
+                  </div>
+                </div>
               </div>
 
               <div
@@ -753,7 +704,9 @@ export default function OrderDetailPage() {
                   display: "flex",
                   gap: 8,
                   flexWrap: "wrap",
-                  marginTop: 8,
+                  marginTop: 14,
+                  paddingTop: 14,
+                  borderTop: "1.5px solid #94a3b8",
                 }}
               >
                 {(["新規", "進行中", "納品済み", "アーカイブ"] as const).map((status) => {
@@ -790,8 +743,8 @@ export default function OrderDetailPage() {
               style={{
                 background: "#ffffff",
                 border: "1px solid #e5e7eb",
-                borderRadius: 28,
-                padding: 20,
+                borderRadius: 36,
+                padding: 18,
                 boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
               }}
             >
@@ -835,13 +788,14 @@ export default function OrderDetailPage() {
               <div
                 ref={messagesBoxRef}
                 style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 24,
+                  border: "1px solid #b7d7c0",
+                  borderRadius: 28,
                   padding: 16,
-                  height: 520,
+                  height: 560,
                   overflowY: "auto",
                   overflowX: "hidden",
-                  background: "#f8fafc",
+                  background:
+                    "linear-gradient(180deg, #bfe8b8 0%, #b7e3b0 100%)",
                   boxSizing: "border-box",
                 }}
               >
@@ -852,7 +806,8 @@ export default function OrderDetailPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: "#64748b",
+                      color: "rgba(15,23,42,0.55)",
+                      fontWeight: 700,
                     }}
                   >
                     まだメッセージがありません
@@ -887,31 +842,32 @@ export default function OrderDetailPage() {
                               <div
                                 style={{
                                   fontSize: 11,
-                                  color: "#64748b",
+                                  color: "rgba(15,23,42,0.55)",
                                   marginBottom: 6,
                                   textAlign: isMe ? "right" : "left",
                                   wordBreak: "break-word",
+                                  fontWeight: 700,
                                 }}
                               >
-                                {m.sender_name} ・ {new Date(m.created_at).toLocaleString()}
+                                {m.sender_name} ・ {new Date(m.created_at).toLocaleString("ja-JP")}
                               </div>
 
                               <div
                                 style={{
                                   padding: "12px 14px",
                                   borderRadius: isMe
-                                    ? "22px 22px 8px 22px"
-                                    : "22px 22px 22px 8px",
+                                    ? "20px 20px 6px 20px"
+                                    : "20px 20px 20px 6px",
                                   lineHeight: 1.65,
                                   whiteSpace: "pre-wrap",
                                   wordBreak: "break-word",
                                   overflowWrap: "anywhere",
-                                  background: isMe ? "#3b82f6" : "#ffffff",
-                                  color: isMe ? "#ffffff" : "#0f172a",
+                                  background: isMe ? "#8de055" : "#ffffff",
+                                  color: "#0f172a",
                                   border: isMe
-                                    ? "1px solid rgba(59,130,246,0.24)"
-                                    : "1px solid #e5e7eb",
-                                  boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
+                                    ? "1px solid rgba(86,170,40,0.28)"
+                                    : "1px solid rgba(15,23,42,0.06)",
+                                  boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
                                 }}
                               >
                                 {m.content && <div>{m.content}</div>}
@@ -955,25 +911,26 @@ export default function OrderDetailPage() {
                             <div
                               style={{
                                 fontSize: 11,
-                                color: "#64748b",
+                                color: "rgba(15,23,42,0.55)",
                                 marginBottom: 6,
                                 textAlign: group.isMe ? "right" : "left",
+                                fontWeight: 700,
                               }}
                             >
-                              {group.sender_name} ・ {new Date(group.created_at).toLocaleString()}
+                              {group.sender_name} ・ {new Date(group.created_at).toLocaleString("ja-JP")}
                             </div>
 
                             <div
                               style={{
                                 padding: "12px 14px",
                                 borderRadius: group.isMe
-                                  ? "22px 22px 8px 22px"
-                                  : "22px 22px 22px 8px",
-                                background: group.isMe ? "#3b82f6" : "#ffffff",
+                                  ? "20px 20px 6px 20px"
+                                  : "20px 20px 20px 6px",
+                                background: group.isMe ? "#8de055" : "#ffffff",
                                 border: group.isMe
-                                  ? "1px solid rgba(59,130,246,0.24)"
-                                  : "1px solid #e5e7eb",
-                                boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
+                                  ? "1px solid rgba(86,170,40,0.28)"
+                                  : "1px solid rgba(15,23,42,0.06)",
+                                boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
                               }}
                             >
                               <div
@@ -1017,8 +974,9 @@ export default function OrderDetailPage() {
                   display: "flex",
                   alignItems: "center",
                   marginTop: 10,
-                  color: "#64748b",
+                  color: "#4b5563",
                   fontSize: 13,
+                  fontWeight: 700,
                 }}
               >
                 {otherTyping ? "入力中..." : ""}
@@ -1217,7 +1175,7 @@ export default function OrderDetailPage() {
                       padding: "15px 18px",
                       borderRadius: 999,
                       border: "1px solid #dbe2ea",
-                      background: "#f8fafc",
+                      background: "#ffffff",
                       color: "#334155",
                       outline: "none",
                       boxSizing: "border-box",
@@ -1229,7 +1187,7 @@ export default function OrderDetailPage() {
                     type="submit"
                     disabled={sending}
                     style={{
-                      background: sending ? "#9ca3af" : "#111827",
+                      background: sending ? "#9ca3af" : "#06c755",
                       color: "#ffffff",
                       border: "none",
                       borderRadius: 16,
@@ -1237,7 +1195,7 @@ export default function OrderDetailPage() {
                       fontWeight: 800,
                       cursor: sending ? "default" : "pointer",
                       whiteSpace: "nowrap",
-                      boxShadow: "0 10px 24px rgba(17,24,39,0.18)",
+                      boxShadow: "0 10px 24px rgba(6,199,85,0.22)",
                     }}
                   >
                     {sending ? "送信中..." : "送信"}
@@ -1260,6 +1218,91 @@ export default function OrderDetailPage() {
           opacity: 0.96;
           transform: translateY(-1px);
           transition: 0.2s ease;
+        }
+
+        .detailTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          align-items: flex-start;
+        }
+
+        .detailMain {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .detailLabelHead {
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 8px;
+          letter-spacing: 0.04em;
+          font-weight: 700;
+        }
+
+        .detailTitle {
+          margin: 0;
+          font-size: clamp(24px, 4vw, 30px);
+          line-height: 1.25;
+          color: #0f172a;
+          word-break: break-word;
+        }
+
+        .detailInfoGrid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 18px;
+        }
+
+        .detailDividerBlock {
+          padding-left: 16px;
+          border-left: 1.5px solid #94a3b8;
+        }
+
+        .detailMiniLabel {
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 6px;
+          font-weight: 700;
+        }
+
+        .detailMiniValue {
+          font-size: 14px;
+          font-weight: 800;
+          color: #111827;
+          line-height: 1.35;
+          word-break: break-word;
+        }
+
+        .detailStatusWrap {
+          flex-shrink: 0;
+          display: flex;
+          justify-content: flex-end;
+          align-items: flex-start;
+        }
+
+        @media (max-width: 900px) {
+          .detailTop {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .detailStatusWrap {
+            justify-content: flex-start;
+          }
+
+          .detailInfoGrid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .detailDividerBlock {
+            padding-left: 0;
+            border-left: none;
+            padding-top: 10px;
+            border-top: 1px solid #cbd5e1;
+          }
         }
       `}</style>
     </div>
