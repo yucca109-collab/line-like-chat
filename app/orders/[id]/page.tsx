@@ -12,6 +12,7 @@ type Order = {
   contact_name: string | null;
   created_by_name: string | null;
   created_at: string;
+  designer_name: string | null;
 };
 
 type Message = {
@@ -44,6 +45,14 @@ type MessageGroup =
       images: Message[];
     };
 
+const DESIGNER_OPTIONS = [
+  "未設定",
+  "吉本",
+  "ハマダユカ",
+  "外注A",
+  "外注B",
+] as const;
+
 export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -56,7 +65,9 @@ export default function OrderDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [savingDesigner, setSavingDesigner] = useState(false);
   const [err, setErr] = useState("");
+  const [designerName, setDesignerName] = useState("");
 
   const [userName, setUserName] = useState("");
   const [input, setInput] = useState("");
@@ -75,6 +86,12 @@ export default function OrderDetailPage() {
       previewUrls.forEach((item) => URL.revokeObjectURL(item.url));
     };
   }, [previewUrls]);
+
+  useEffect(() => {
+    if (order) {
+      setDesignerName(order.designer_name || "");
+    }
+  }, [order]);
 
   const getDisplayStatus = (status: string): DisplayStatus => {
     if (
@@ -134,7 +151,9 @@ export default function OrderDetailPage() {
 
     const { data: orderData, error: orderErr } = await supabase
       .from("orders")
-      .select("id,title,status,store_name,contact_name,created_by_name,created_at")
+      .select(
+        "id,title,status,store_name,contact_name,created_by_name,created_at,designer_name"
+      )
       .eq("id", orderId)
       .single();
 
@@ -278,6 +297,36 @@ export default function OrderDetailPage() {
 
     setOrder((prev) => (prev ? { ...prev, status: nextStatus } : prev));
     await loadAll();
+  };
+
+  const saveDesignerName = async () => {
+    setErr("");
+    setSavingDesigner(true);
+
+    const value = designerName.trim();
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        designer_name: value || null,
+      })
+      .eq("id", orderId);
+
+    setSavingDesigner(false);
+
+    if (error) {
+      setErr(`担当デザイナー保存エラー: ${error.message}`);
+      return;
+    }
+
+    setOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            designer_name: value || null,
+          }
+        : prev
+    );
   };
 
   const clearTypingTimer = () => {
@@ -708,11 +757,11 @@ export default function OrderDetailPage() {
               >
                 {[
                   { label: "店舗名", value: order.store_name || "未入力" },
-                  { label: "担当者", value: order.contact_name || "未入力" },
+                  { label: "窓口担当者", value: order.contact_name || "未入力" },
                   { label: "作成者", value: order.created_by_name || "未入力" },
                   {
                     label: "作成日時",
-                    value: new Date(order.created_at).toLocaleString(),
+                    value: new Date(order.created_at).toLocaleString("ja-JP"),
                   },
                 ].map((item) => (
                   <div
@@ -750,10 +799,91 @@ export default function OrderDetailPage() {
 
               <div
                 style={{
+                  marginTop: 8,
+                  padding: 16,
+                  borderRadius: 18,
+                  background: "#f8fafc",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#64748b",
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  担当デザイナー
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <select
+                    value={designerName}
+                    onChange={(e) =>
+                      setDesignerName(e.target.value === "未設定" ? "" : e.target.value)
+                    }
+                    style={{
+                      minWidth: 220,
+                      padding: "12px 14px",
+                      borderRadius: 14,
+                      border: "1px solid #dbe2ea",
+                      background: "#ffffff",
+                      color: "#334155",
+                      fontSize: 14,
+                      outline: "none",
+                    }}
+                  >
+                    {DESIGNER_OPTIONS.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={saveDesignerName}
+                    disabled={savingDesigner}
+                    style={{
+                      background: "#111827",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: 14,
+                      padding: "12px 16px",
+                      fontWeight: 700,
+                      cursor: savingDesigner ? "default" : "pointer",
+                      opacity: savingDesigner ? 0.7 : 1,
+                      boxShadow: "0 10px 24px rgba(17,24,39,0.18)",
+                    }}
+                  >
+                    {savingDesigner ? "保存中..." : "担当デザイナーを保存"}
+                  </button>
+
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#64748b",
+                    }}
+                  >
+                    現在：{order.designer_name || "未設定"}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
                   display: "flex",
                   gap: 8,
                   flexWrap: "wrap",
-                  marginTop: 8,
+                  marginTop: 14,
                 }}
               >
                 {(["新規", "進行中", "納品済み", "アーカイブ"] as const).map((status) => {
@@ -893,7 +1023,7 @@ export default function OrderDetailPage() {
                                   wordBreak: "break-word",
                                 }}
                               >
-                                {m.sender_name} ・ {new Date(m.created_at).toLocaleString()}
+                                {m.sender_name} ・ {new Date(m.created_at).toLocaleString("ja-JP")}
                               </div>
 
                               <div
@@ -960,7 +1090,7 @@ export default function OrderDetailPage() {
                                 textAlign: group.isMe ? "right" : "left",
                               }}
                             >
-                              {group.sender_name} ・ {new Date(group.created_at).toLocaleString()}
+                              {group.sender_name} ・ {new Date(group.created_at).toLocaleString("ja-JP")}
                             </div>
 
                             <div
@@ -1250,7 +1380,8 @@ export default function OrderDetailPage() {
       </div>
 
       <style jsx>{`
-        input:focus {
+        input:focus,
+        select:focus {
           border-color: #94a3b8 !important;
           background: #ffffff !important;
           box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
