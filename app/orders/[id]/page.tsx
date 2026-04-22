@@ -795,7 +795,7 @@ export default function OrderDetailPage() {
                   overflowY: "auto",
                   overflowX: "hidden",
                   background:
-                    "linear-gradient(180deg, #bfe8b8 0%, #b7e3b0 100%)",
+                    "linear-gradient(180deg, #4b5563 0%, #374151 100%)",
                   boxSizing: "border-box",
                 }}
               >
