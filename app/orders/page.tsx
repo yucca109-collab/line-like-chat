@@ -14,7 +14,6 @@ type OrderRow = {
   designer_name: string | null;
   created_by_name: string | null;
   display_id: string | null;
-  
 };
 
 type MessageRow = {
@@ -76,7 +75,7 @@ export default function OrdersPage() {
       return {
         bg: "#f59e0b",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(245,158,11,0.22)",
+        shadow: "0 6px 16px rgba(245,158,11,0.18)",
       };
     }
 
@@ -84,7 +83,7 @@ export default function OrdersPage() {
       return {
         bg: "#22c55e",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(34,197,94,0.2)",
+        shadow: "0 6px 16px rgba(34,197,94,0.16)",
       };
     }
 
@@ -92,14 +91,14 @@ export default function OrdersPage() {
       return {
         bg: "#6b7280",
         text: "#ffffff",
-        shadow: "0 8px 20px rgba(107,114,128,0.18)",
+        shadow: "0 6px 16px rgba(107,114,128,0.16)",
       };
     }
 
     return {
       bg: "#3b82f6",
       text: "#ffffff",
-      shadow: "0 8px 20px rgba(59,130,246,0.2)",
+      shadow: "0 6px 16px rgba(59,130,246,0.16)",
     };
   };
 
@@ -219,79 +218,78 @@ export default function OrdersPage() {
     setLoading(false);
   };
 
-const createOrder = async () => {
-  setErr("");
+  const createOrder = async () => {
+    setErr("");
 
-  const name = localStorage.getItem("user_name");
-  if (!name) {
-    router.push("/login");
-    return;
-  }
-
-  const title = newTitle.trim();
-  const storeName = newStoreName.trim();
-  const contactName = newContactName.trim();
-
-  if (!title) {
-    setErr("依頼案件名を入力してください");
-    return;
-  }
-
-  setCreating(true);
-
-  // いま登録されている最後の display_id を取る
-  const { data: latestOrder, error: latestError } = await supabase
-    .from("orders")
-    .select("display_id")
-    .not("display_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestError) {
-    setCreating(false);
-    setErr(`表示ID取得エラー: ${latestError.message}`);
-    return;
-  }
-
-  let nextNumber = 1001;
-
-  if (latestOrder?.display_id) {
-    const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
-    if (!Number.isNaN(parsed)) {
-      nextNumber = parsed + 1;
+    const name = localStorage.getItem("user_name");
+    if (!name) {
+      router.push("/login");
+      return;
     }
-  }
 
-  const displayId = `#${nextNumber}`;
+    const title = newTitle.trim();
+    const storeName = newStoreName.trim();
+    const contactName = newContactName.trim();
 
-  const { data, error } = await supabase
-    .from("orders")
-    .insert({
-      title,
-      status: "新規",
-      store_name: storeName || null,
-      contact_name: contactName || null,
-      designer_name: null,
-      created_by_name: name,
-      display_id: displayId,
-    })
-    .select("id")
-    .single();
+    if (!title) {
+      setErr("依頼案件名を入力してください");
+      return;
+    }
 
-  setCreating(false);
+    setCreating(true);
 
-  if (error) {
-    setErr(error.message);
-    return;
-  }
+    const { data: latestOrder, error: latestError } = await supabase
+      .from("orders")
+      .select("display_id")
+      .not("display_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  setNewTitle("");
-  setNewStoreName("");
-  setNewContactName("");
+    if (latestError) {
+      setCreating(false);
+      setErr(`表示ID取得エラー: ${latestError.message}`);
+      return;
+    }
 
-  router.push(`/orders/${data.id}`);
-};
+    let nextNumber = 1001;
+
+    if (latestOrder?.display_id) {
+      const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
+      if (!Number.isNaN(parsed)) {
+        nextNumber = parsed + 1;
+      }
+    }
+
+    const displayId = `#${nextNumber}`;
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        title,
+        status: "新規",
+        store_name: storeName || null,
+        contact_name: contactName || null,
+        designer_name: null,
+        created_by_name: name,
+        display_id: displayId,
+      })
+      .select("id")
+      .single();
+
+    setCreating(false);
+
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    setNewTitle("");
+    setNewStoreName("");
+    setNewContactName("");
+
+    router.push(`/orders/${data.id}`);
+  };
 
   const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
     setErr("");
@@ -418,7 +416,8 @@ const createOrder = async () => {
         (o.store_name ?? "").toLowerCase().includes(keyword) ||
         (o.contact_name ?? "").toLowerCase().includes(keyword) ||
         (o.designer_name ?? "").toLowerCase().includes(keyword) ||
-        (o.created_by_name ?? "").toLowerCase().includes(keyword);
+        (o.created_by_name ?? "").toLowerCase().includes(keyword) ||
+        (o.display_id ?? "").toLowerCase().includes(keyword);
 
       const matchesStatus =
         statusFilter === "すべて" || o.display_status === statusFilter;
@@ -455,7 +454,7 @@ const createOrder = async () => {
       <div
         style={{
           width: "100%",
-          maxWidth: 1040,
+          maxWidth: 1180,
           margin: "0 auto",
         }}
       >
@@ -660,7 +659,7 @@ const createOrder = async () => {
             <input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="検索（店舗名・窓口担当者・担当デザイナー・案件名）"
+              placeholder="検索（ID・店舗名・窓口担当者・担当デザイナー・案件名）"
               style={{
                 minWidth: 300,
                 padding: "12px 14px",
@@ -736,303 +735,194 @@ const createOrder = async () => {
             marginTop: 18,
             display: "flex",
             flexDirection: "column",
-            gap: 14,
+            gap: 16,
           }}
         >
           {filteredOrders.map((o) => {
             const statusStyle = getStatusColor(o.display_status);
 
             return (
-  <div
-    key={o.id}
-    onClick={() => router.push(`/orders/${o.id}`)}
-    style={{
-      display: "block",
-      color: "#0f172a",
-      background: "#ffffff",
-      border: o.unread
-        ? "1px solid rgba(59,130,246,0.32)"
-        : "1px solid #e5e7eb",
-      borderRadius: 40,
-      padding: "26px 28px 22px",
-      boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-      position: "relative",
-      cursor: "pointer",
-    }}
-  >
-    {o.unread && (
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 20,
-          bottom: 20,
-          width: 4,
-          borderRadius: "0 999px 999px 0",
-          background: "#3b82f6",
-        }}
-      />
-    )}
+              <div
+                key={o.id}
+                onClick={() => router.push(`/orders/${o.id}`)}
+                style={{
+                  display: "block",
+                  color: "#0f172a",
+                  background: "#ffffff",
+                  border: o.unread
+                    ? "1px solid rgba(59,130,246,0.32)"
+                    : "1px solid #e5e7eb",
+                  borderRadius: 40,
+                  padding: "24px 24px 20px",
+                  boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+                  position: "relative",
+                  cursor: "pointer",
+                }}
+              >
+                {o.unread && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 18,
+                      bottom: 18,
+                      width: 4,
+                      borderRadius: "0 999px 999px 0",
+                      background: "#3b82f6",
+                    }}
+                  />
+                )}
 
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.5fr 0.75fr 0.75fr auto",
-        gap: 24,
-        alignItems: "start",
-        paddingBottom: 16,
-        borderBottom: "3px solid #94a3b8",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#64748b",
-            marginBottom: 6,
-            fontWeight: 700,
-            letterSpacing: "0.02em",
-          }}
-        >
-          依頼案件名
-        </div>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: "#111827",
-            lineHeight: 1.35,
-            wordBreak: "break-word",
-          }}
-        >
-          {o.title || "未入力"}
-        </div>
-      </div>
+                <div className="orderCardTop">
+                  <div className="orderCardMain">
+                    <div className="orderTopGrid">
+                      <div style={{ minWidth: 0 }}>
+                        <div className="orderLabel">依頼案件名</div>
+                        <div className="orderValue">{o.title || "未入力"}</div>
+                      </div>
 
-      <div
-        style={{
-          minWidth: 0,
-          paddingLeft: 22,
-          borderLeft: "3px solid #94a3b8",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            color: "#64748b",
-            marginBottom: 6,
-            fontWeight: 700,
-            letterSpacing: "0.02em",
-          }}
-        >
-          使用店舗名
-        </div>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: "#111827",
-            lineHeight: 1.35,
-            wordBreak: "break-word",
-          }}
-        >
-          {o.store_name || "未入力"}
-        </div>
-      </div>
+                      <div className="orderDividerBlock">
+                        <div className="orderLabel">使用店舗名</div>
+                        <div className="orderValue">{o.store_name || "未入力"}</div>
+                      </div>
 
-      <div
-        style={{
-          minWidth: 0,
-          paddingLeft: 22,
-          borderLeft: "3px solid #94a3b8",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            color: "#64748b",
-            marginBottom: 6,
-            fontWeight: 700,
-            letterSpacing: "0.02em",
-          }}
-        >
-          依頼者名
-        </div>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: "#111827",
-            lineHeight: 1.35,
-            wordBreak: "break-word",
-          }}
-        >
-          {o.contact_name || "未入力"}
-        </div>
-      </div>
+                      <div className="orderDividerBlock">
+                        <div className="orderLabel">依頼者名</div>
+                        <div className="orderValue">{o.contact_name || "未入力"}</div>
+                      </div>
+                    </div>
+                  </div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "flex-start",
-        }}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
+                  <div className="orderStatusWrap">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-            const nextStatus: DisplayStatus =
-              o.display_status === "新規"
-                ? "進行中"
-                : o.display_status === "進行中"
-                ? "納品済み"
-                : o.display_status === "納品済み"
-                ? "アーカイブ"
-                : "進行中";
+                        const nextStatus: DisplayStatus =
+                          o.display_status === "新規"
+                            ? "進行中"
+                            : o.display_status === "進行中"
+                            ? "納品済み"
+                            : o.display_status === "納品済み"
+                            ? "アーカイブ"
+                            : "進行中";
 
-            updateOrderStatus(o.id, nextStatus);
-          }}
-          style={{
-            minWidth: 156,
-            height: 62,
-            border: "none",
-            borderRadius: 999,
-            padding: "0 24px",
-            fontWeight: 900,
-            fontSize: 18,
-            cursor: "pointer",
-            background: statusStyle.bg,
-            color: statusStyle.text,
-            whiteSpace: "nowrap",
-            boxShadow: statusStyle.shadow,
-          }}
-          title="クリックで状態切り替え"
-        >
-          {o.display_status}
-        </button>
-      </div>
-    </div>
+                        updateOrderStatus(o.id, nextStatus);
+                      }}
+                      style={{
+                        minWidth: 118,
+                        height: 48,
+                        border: "none",
+                        borderRadius: 999,
+                        padding: "0 18px",
+                        fontWeight: 900,
+                        fontSize: 14,
+                        cursor: "pointer",
+                        background: statusStyle.bg,
+                        color: statusStyle.text,
+                        whiteSpace: "nowrap",
+                        boxShadow: statusStyle.shadow,
+                      }}
+                      title="クリックで状態切り替え"
+                    >
+                      {o.display_status}
+                    </button>
+                  </div>
+                </div>
 
-    <div
-      style={{
-        marginTop: 14,
-        display: "grid",
-        gridTemplateColumns: "1fr auto auto auto",
-        gap: 18,
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 900,
-          color: "#64748b",
-          letterSpacing: "0.01em",
-          wordBreak: "break-word",
-        }}
-      >
-        オーダーID:{o.display_id || "未採番"}
-      </div>
+                <div className="orderBottomRow">
+                  <div className="orderBottomLeft">
+                    <div className="orderIdText">
+                      オーダーID:{o.display_id || "未採番"}
+                    </div>
 
-      <div
-        style={{
-          fontSize: 14,
-          color: "#64748b",
-          fontWeight: 700,
-          whiteSpace: "nowrap",
-        }}
-      >
-        最新メッセージ：{formatDate(o.latest_message_at)}
-      </div>
+                    <div className="orderMetaText">
+                      最新メッセージ：{formatDate(o.latest_message_at)}
+                    </div>
 
-      <div
-        style={{
-          fontSize: 14,
-          color: "#64748b",
-          fontWeight: 700,
-          whiteSpace: "nowrap",
-        }}
-      >
-        作成者：{o.created_by_name || "不明"}
-      </div>
+                    <div className="orderMetaText">
+                      作成者：{o.created_by_name || "不明"}
+                    </div>
+                  </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          justifyContent: "flex-end",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 14,
-            color: "#64748b",
-            fontWeight: 800,
-            whiteSpace: "nowrap",
-          }}
-        >
-          担当デザイナー
-        </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: "#64748b",
+                        fontWeight: 800,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      担当デザイナー
+                    </div>
 
-        <select
-          value={o.designer_name || ""}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            e.stopPropagation();
-            updateDesignerName(o.id, e.target.value);
-          }}
-          style={{
-            width: 260,
-            height: 42,
-            padding: "0 14px",
-            borderRadius: 999,
-            border: "2px solid #d1d5db",
-            background: "#ffffff",
-            color: "#0f172a",
-            outline: "none",
-            fontSize: 14,
-            fontWeight: 700,
-            boxSizing: "border-box",
-          }}
-        >
-          {DESIGNER_OPTIONS.map((name) => (
-            <option key={name || "empty"} value={name}>
-              {name || "未設定"}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+                    <select
+                      value={o.designer_name || ""}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        updateDesignerName(o.id, e.target.value);
+                      }}
+                      style={{
+                        width: 220,
+                        maxWidth: "100%",
+                        height: 40,
+                        padding: "0 14px",
+                        borderRadius: 999,
+                        border: "1.5px solid #d1d5db",
+                        background: "#ffffff",
+                        color: "#0f172a",
+                        outline: "none",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {DESIGNER_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-    {o.unread_count > 0 && (
-      <div
-        style={{
-          position: "absolute",
-          right: 18,
-          top: 18,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minWidth: 28,
-          height: 28,
-          padding: o.unread_count >= 10 ? "0 8px" : "0 0",
-          borderRadius: 999,
-          background: "#ef4444",
-          color: "#ffffff",
-          fontSize: 12,
-          fontWeight: 800,
-          boxShadow: "0 6px 16px rgba(239,68,68,0.28)",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {o.unread_count > 99 ? "99+" : o.unread_count}
-      </div>
-    )}
-  </div>
-);
+                {o.unread_count > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 16,
+                      top: 16,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 26,
+                      height: 26,
+                      padding: o.unread_count >= 10 ? "0 8px" : "0 0",
+                      borderRadius: 999,
+                      background: "#ef4444",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      boxShadow: "0 6px 16px rgba(239,68,68,0.28)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {o.unread_count > 99 ? "99+" : o.unread_count}
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
       </div>
@@ -1049,6 +939,137 @@ const createOrder = async () => {
           opacity: 0.96;
           transform: translateY(-1px);
           transition: 0.2s ease;
+        }
+
+        .orderCardTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          align-items: flex-start;
+          padding-bottom: 14px;
+          border-bottom: 1.5px solid #94a3b8;
+        }
+
+        .orderCardMain {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .orderTopGrid {
+          display: grid;
+          grid-template-columns: 1.5fr 0.8fr 0.8fr;
+          gap: 18px;
+          align-items: start;
+        }
+
+        .orderDividerBlock {
+          min-width: 0;
+          padding-left: 18px;
+          border-left: 1.5px solid #94a3b8;
+        }
+
+        .orderLabel {
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 6px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+
+        .orderValue {
+          font-size: 15px;
+          font-weight: 800;
+          color: #111827;
+          line-height: 1.35;
+          word-break: break-word;
+        }
+
+        .orderStatusWrap {
+          display: flex;
+          justify-content: flex-end;
+          align-items: flex-start;
+          flex-shrink: 0;
+        }
+
+        .orderBottomRow {
+          margin-top: 14px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+
+        .orderBottomLeft {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+          align-items: center;
+          min-width: 0;
+        }
+
+        .orderIdText {
+          font-size: 15px;
+          font-weight: 900;
+          color: #64748b;
+          letter-spacing: 0.01em;
+          word-break: break-word;
+        }
+
+        .orderMetaText {
+          font-size: 13px;
+          color: #64748b;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+          .orderCardTop {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .orderTopGrid {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+
+          .orderDividerBlock {
+            padding-left: 0;
+            border-left: none;
+            padding-top: 10px;
+            border-top: 1px solid #cbd5e1;
+          }
+
+          .orderStatusWrap {
+            justify-content: flex-start;
+          }
+
+          .orderBottomRow {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .orderBottomLeft {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+          }
+
+          .orderMetaText {
+            white-space: normal;
+            word-break: break-word;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .orderValue {
+            font-size: 14px;
+          }
+
+          .orderIdText {
+            font-size: 14px;
+          }
         }
       `}</style>
     </div>
