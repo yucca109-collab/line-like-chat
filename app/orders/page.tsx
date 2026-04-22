@@ -977,7 +977,7 @@ export default function OrdersPage() {
         }
 
         .orderValue {
-          font-size: 15px;
+          font-size: 18px;
           font-weight: 800;
           color: #111827;
           line-height: 1.35;
