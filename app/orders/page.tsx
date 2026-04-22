@@ -11,6 +11,8 @@ type OrderRow = {
   created_at: string;
   store_name: string | null;
   contact_name: string | null;
+  designer_name: string | null;
+  created_by_name: string | null;
 };
 
 type MessageRow = {
@@ -98,6 +100,11 @@ export default function OrdersPage() {
     };
   };
 
+  const formatDate = (value: string | null) => {
+    if (!value) return "まだありません";
+    return new Date(value).toLocaleString("ja-JP");
+  };
+
   const load = async () => {
     const name = localStorage.getItem("user_name");
     if (!name) {
@@ -111,7 +118,9 @@ export default function OrdersPage() {
 
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
-      .select("id,title,status,created_at,store_name,contact_name")
+      .select(
+        "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name"
+      )
       .order("created_at", { ascending: false });
 
     if (orderError) {
@@ -227,6 +236,7 @@ export default function OrdersPage() {
         status: "新規",
         store_name: storeName || null,
         contact_name: contactName || null,
+        designer_name: null,
         created_by_name: name,
       })
       .select()
@@ -285,6 +295,7 @@ export default function OrdersPage() {
   };
 
   const logout = () => {
+    localStorage.removeItem("user_name");
     router.push("/login");
   };
 
@@ -353,7 +364,9 @@ export default function OrdersPage() {
         !keyword ||
         (o.title ?? "").toLowerCase().includes(keyword) ||
         (o.store_name ?? "").toLowerCase().includes(keyword) ||
-        (o.contact_name ?? "").toLowerCase().includes(keyword);
+        (o.contact_name ?? "").toLowerCase().includes(keyword) ||
+        (o.designer_name ?? "").toLowerCase().includes(keyword) ||
+        (o.created_by_name ?? "").toLowerCase().includes(keyword);
 
       const matchesStatus =
         statusFilter === "すべて" || o.display_status === statusFilter;
@@ -493,7 +506,7 @@ export default function OrdersPage() {
             <input
               value={newContactName}
               onChange={(e) => setNewContactName(e.target.value)}
-              placeholder="担当者名"
+              placeholder="窓口担当者名"
               style={{
                 padding: "14px 16px",
                 borderRadius: 14,
@@ -595,9 +608,9 @@ export default function OrdersPage() {
             <input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="検索（店舗名・担当者名・案件名）"
+              placeholder="検索（店舗名・窓口担当者・担当デザイナー・案件名）"
               style={{
-                minWidth: 260,
+                minWidth: 300,
                 padding: "12px 14px",
                 borderRadius: 14,
                 border: "1px solid #dbe2ea",
@@ -648,11 +661,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {loading && (
-          <p style={{ marginTop: 16, color: "#475569" }}>
-            読み込み中...
-          </p>
-        )}
+        {loading && <p style={{ marginTop: 16, color: "#475569" }}>読み込み中...</p>}
 
         {!loading && filteredOrders.length === 0 && (
           <div
@@ -746,7 +755,7 @@ export default function OrdersPage() {
                             fontWeight: 600,
                           }}
                         >
-                          担当者名
+                          担当デザイナー
                         </div>
                         <div
                           style={{
@@ -756,7 +765,7 @@ export default function OrdersPage() {
                             wordBreak: "break-word",
                           }}
                         >
-                          {o.contact_name || "未入力"}
+                          {o.designer_name || "未設定"}
                         </div>
                       </div>
 
@@ -805,18 +814,43 @@ export default function OrdersPage() {
                           {o.store_name || "未入力"}
                         </div>
                       </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginBottom: 4,
+                            fontWeight: 600,
+                          }}
+                        >
+                          窓口担当者
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {o.contact_name || "未入力"}
+                        </div>
+                      </div>
                     </div>
 
                     <div
                       style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 16,
+                        alignItems: "center",
                         fontSize: 14,
                         color: "#64748b",
                       }}
                     >
-                      最新メッセージ：
-                      {o.latest_message_at
-                        ? new Date(o.latest_message_at).toLocaleString()
-                        : "まだありません"}
+                      <span>最新メッセージ：{formatDate(o.latest_message_at)}</span>
+                      <span>作成者：{o.created_by_name || "不明"}</span>
                     </div>
                   </div>
 
