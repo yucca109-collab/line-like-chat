@@ -44,7 +44,12 @@ export default function LoginPage() {
     router.push("/orders");
   };
 
-  return (
+
+
+  
+return (
+  <>
+    {/* 画面全体 */}
     <div
       style={{
         minHeight: "100vh",
@@ -56,6 +61,7 @@ export default function LoginPage() {
         padding: 24,
       }}
     >
+      {/* 白カード */}
       <div
         style={{
           width: "100%",
@@ -123,7 +129,7 @@ export default function LoginPage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例：山田太郎 / 腕部須斗太郎"
+              placeholder="例：山田太郎 / ワンベストタロウ"
               style={{
                 width: "100%",
                 height: 52,
@@ -134,7 +140,7 @@ export default function LoginPage() {
                 outline: "none",
                 background: "#f8fafc",
                 boxSizing: "border-box",
-                 color: "#64748b",
+                color: "#64748b",
               }}
             />
             <p
@@ -182,7 +188,7 @@ export default function LoginPage() {
                 outline: "none",
                 background: "#f8fafc",
                 boxSizing: "border-box",
-                 color: "#64748b",
+                color: "#64748b",
               }}
             />
           </div>
@@ -205,8 +211,6 @@ export default function LoginPage() {
           >
             ログインして案件一覧へ
           </button>
-
-          
         </div>
       </div>
 
@@ -224,5 +228,41 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
-  );
-}
+
+    {/* 👇 外に出したボタン */}
+    <div
+      style={{
+        position: "fixed",
+        bottom: 40,
+        left: 0,
+        width: "100%",
+        display: "flex",
+        justifyContent: "center",
+        padding: "0 24px",
+        pointerEvents: "none",
+      }}
+    >
+      <button
+        onClick={() => {
+          window.open("https://1best.info/gen_v1/", "_blank");
+        }}
+        style={{
+          pointerEvents: "auto",
+          width: "100%",
+          maxWidth: 560,
+          height: 64,
+          border: "none",
+          borderRadius: 999,
+          background: "linear-gradient(90deg, #ff007a, #ff4da6)",
+          color: "#fff",
+          fontSize: 16,
+          fontWeight: 700,
+          boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
+          cursor: "pointer",
+        }}
+      >
+        コピペ用ジェネレーターはこちら
+      </button>
+    </div>
+  </>
+);
