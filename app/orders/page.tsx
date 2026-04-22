@@ -39,7 +39,7 @@ type OrderWithMeta = OrderRow & {
   display_status: DisplayStatus;
 };
 
-const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ", "外注A", "外注B"] as const;
+const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -876,14 +876,14 @@ export default function OrdersPage() {
                       style={{
                         width: 220,
                         maxWidth: "100%",
-                        height: 40,
+                        height: 30,
                         padding: "0 14px",
                         borderRadius: 999,
                         border: "1.5px solid #d1d5db",
                         background: "#ffffff",
                         color: "#0f172a",
                         outline: "none",
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: 700,
                         boxSizing: "border-box",
                       }}
