@@ -208,19 +208,20 @@ export default function LoginPage() {
           onClick={() => {
             window.open("https://1best.info/gen_v1/", "_blank");
           }}
-          style={{
+         style={{
             width: "50%",
-            height: 64,
-            border: "none",
-            borderRadius: 999,
-            background: "linear-gradient(90deg, #ff007a, #ff4da6)",
-            color: "#fff",
-            fontSize: 16,
-            fontWeight: 700,
-            boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
-            cursor: "pointer",
-            justifyContent: "center",
-          }}
+              height: 64,
+              margin: "0 auto", 
+              display: "block",
+              border: "none",
+              borderRadius: 999,
+              background: "linear-gradient(90deg, #ff007a, #ff4da6)",
+              color: "#fff",
+              fontSize: 16,
+              fontWeight: 700,
+              boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
+              cursor: "pointer",
+            }}
         >
           コピペ用ジェネレーターはこちら
         </button>
