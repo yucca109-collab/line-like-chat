@@ -213,15 +213,11 @@ export default function LoginPage() {
 
 <div
   style={{
-    position: "fixed",
-    bottom: 24,
-    left: 0,
     width: "100%",
     display: "flex",
     justifyContent: "center",
-    padding: "0 24px",
-    pointerEvents: "none",
-    zIndex: 9999,
+    marginTop: 16,
+    padding: "0 24px 24px",
     boxSizing: "border-box",
   }}
 >
