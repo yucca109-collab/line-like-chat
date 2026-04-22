@@ -557,7 +557,7 @@ export default function OrdersPage() {
             <input
               value={newContactName}
               onChange={(e) => setNewContactName(e.target.value)}
-              placeholder="窓口担当者名"
+              placeholder="担当者名"
               style={{
                 padding: "14px 16px",
                 borderRadius: 14,
@@ -659,7 +659,7 @@ export default function OrdersPage() {
             <input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="検索（ID・店舗名・窓口担当者・担当デザイナー・案件名）"
+              placeholder="検索（ID・店舗名・担当者・担当デザイナー・案件名）"
               style={{
                 minWidth: 300,
                 padding: "12px 14px",
