@@ -211,20 +211,20 @@ export default function LoginPage() {
         `}</style>
       </div>
 
-      <div
-        style={{
-          position: "fixed",
-          bottom: 24,
-          left: 0,
-          width: "100%",
-          display: "flex",
-          justifyContent: "center",
-          padding: "0 24px",
-          pointerEvents: "none",
-          zIndex: 9999,
-          boxSizing: "border-box",
-        }}
-      >
+<div
+  style={{
+    position: "fixed",
+    bottom: 24,
+    left: 0,
+    width: "100%",
+    display: "flex",
+    justifyContent: "center",
+    padding: "0 24px",
+    pointerEvents: "none",
+    zIndex: 9999,
+    boxSizing: "border-box",
+  }}
+>
         <button
           type="button"
           onClick={() => {
