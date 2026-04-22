@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase
       .from("orders")
       .select("id,title,status,store_name,designer_name,contact_name")
-      .eq("id", userMessage)
+      .eq("display_id", userMessage)
       .maybeSingle();
 
     if (error) {
