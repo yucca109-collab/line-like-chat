@@ -38,6 +38,8 @@ type OrderWithMeta = OrderRow & {
   display_status: DisplayStatus;
 };
 
+const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ", "外注A", "外注B"] as const;
+
 export default function OrdersPage() {
   const router = useRouter();
 
@@ -64,7 +66,6 @@ export default function OrdersPage() {
     ) {
       return status;
     }
-
     return "進行中";
   };
 
@@ -178,10 +179,17 @@ export default function OrdersPage() {
       readMap.set(read.order_id, read);
     }
 
+    const messageMap = new Map<string, MessageRow[]>();
+    for (const msg of messages) {
+      const list = messageMap.get(msg.order_id) ?? [];
+      list.push(msg);
+      messageMap.set(msg.order_id, list);
+    }
+
     const merged: OrderWithMeta[] = baseOrders.map((order) => {
       const latestMessage = latestMessageMap.get(order.id);
       const readInfo = readMap.get(order.id);
-      const orderMessages = messages.filter((msg) => msg.order_id === order.id);
+      const orderMessages = messageMap.get(order.id) ?? [];
 
       let unreadCount = 0;
 
@@ -239,7 +247,7 @@ export default function OrdersPage() {
         designer_name: null,
         created_by_name: name,
       })
-      .select()
+      .select("id")
       .single();
 
     setCreating(false);
@@ -256,26 +264,16 @@ export default function OrdersPage() {
     router.push(`/orders/${data.id}`);
   };
 
-  const updateOrderStatus = async (
-    orderId: string,
-    nextStatus: "新規" | "進行中" | "納品済み" | "アーカイブ"
-  ) => {
+  const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
     setErr("");
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("orders")
       .update({ status: nextStatus })
-      .eq("id", orderId)
-      .select("id,status")
-      .single();
+      .eq("id", orderId);
 
     if (error) {
       setErr(`ステータス更新エラー: ${error.message}`);
-      return;
-    }
-
-    if (!data) {
-      setErr("ステータス更新後のデータ取得に失敗しました");
       return;
     }
 
@@ -284,14 +282,39 @@ export default function OrdersPage() {
         order.id === orderId
           ? {
               ...order,
-              status: data.status,
-              display_status: getDisplayStatus(data.status),
+              status: nextStatus,
+              display_status: nextStatus,
             }
           : order
       )
     );
+  };
 
-    await load();
+  const updateDesignerName = async (orderId: string, nextDesignerName: string) => {
+    setErr("");
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        designer_name: nextDesignerName || null,
+      })
+      .eq("id", orderId);
+
+    if (error) {
+      setErr(`担当デザイナー更新エラー: ${error.message}`);
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === orderId
+          ? {
+              ...order,
+              designer_name: nextDesignerName || null,
+            }
+          : order
+      )
+    );
   };
 
   const logout = () => {
@@ -691,12 +714,11 @@ export default function OrdersPage() {
             const statusStyle = getStatusColor(o.display_status);
 
             return (
-              <a
+              <div
                 key={o.id}
-                href={`/orders/${o.id}`}
+                onClick={() => router.push(`/orders/${o.id}`)}
                 style={{
                   display: "block",
-                  textDecoration: "none",
                   color: "#0f172a",
                   background: "#ffffff",
                   border: o.unread
@@ -706,6 +728,7 @@ export default function OrdersPage() {
                   padding: 20,
                   boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
                   position: "relative",
+                  cursor: "pointer",
                 }}
               >
                 {o.unread && (
@@ -757,16 +780,34 @@ export default function OrdersPage() {
                         >
                           担当デザイナー
                         </div>
-                        <div
+
+                        <select
+                          value={o.designer_name || ""}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateDesignerName(o.id, e.target.value);
+                          }}
                           style={{
-                            fontSize: 18,
-                            fontWeight: 700,
+                            width: "100%",
+                            minHeight: 44,
+                            padding: "10px 12px",
+                            borderRadius: 12,
+                            border: "1px solid #dbe2ea",
+                            background: "#f8fafc",
                             color: "#0f172a",
-                            wordBreak: "break-word",
+                            outline: "none",
+                            fontSize: 15,
+                            fontWeight: 700,
+                            boxSizing: "border-box",
                           }}
                         >
-                          {o.designer_name || "未設定"}
-                        </div>
+                          {DESIGNER_OPTIONS.map((name) => (
+                            <option key={name || "empty"} value={name}>
+                              {name || "未設定"}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
@@ -865,21 +906,18 @@ export default function OrdersPage() {
                     <button
                       type="button"
                       onClick={(e) => {
-                        e.preventDefault();
+                        e.stopPropagation();
 
-                        const nextStatus =
-                          o.status === "新規"
+                        const nextStatus: DisplayStatus =
+                          o.display_status === "新規"
                             ? "進行中"
-                            : o.status === "進行中"
+                            : o.display_status === "進行中"
                             ? "納品済み"
-                            : o.status === "納品済み"
+                            : o.display_status === "納品済み"
                             ? "アーカイブ"
                             : "進行中";
 
-                        updateOrderStatus(
-                          o.id,
-                          nextStatus as "新規" | "進行中" | "納品済み" | "アーカイブ"
-                        );
+                        updateOrderStatus(o.id, nextStatus);
                       }}
                       style={{
                         border: "none",
@@ -920,7 +958,7 @@ export default function OrdersPage() {
                     )}
                   </div>
                 </div>
-              </a>
+              </div>
             );
           })}
         </div>
@@ -936,11 +974,6 @@ export default function OrdersPage() {
 
         button:hover {
           opacity: 0.96;
-          transform: translateY(-1px);
-          transition: 0.2s ease;
-        }
-
-        a:hover {
           transform: translateY(-1px);
           transition: 0.2s ease;
         }
