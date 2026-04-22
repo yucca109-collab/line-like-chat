@@ -219,6 +219,7 @@ export default function LoginPage() {
             fontWeight: 700,
             boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
             cursor: "pointer",
+            justifyContent: "center",
           }}
         >
           コピペ用ジェネレーターはこちら
