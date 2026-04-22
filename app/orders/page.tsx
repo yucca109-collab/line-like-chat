@@ -743,252 +743,296 @@ const createOrder = async () => {
             const statusStyle = getStatusColor(o.display_status);
 
             return (
-              <div
-                key={o.id}
-                onClick={() => router.push(`/orders/${o.id}`)}
-                style={{
-                  display: "block",
-                  color: "#0f172a",
-                  background: "#ffffff",
-                  border: o.unread
-                    ? "1px solid rgba(59,130,246,0.36)"
-                    : "1px solid #e5e7eb",
-                  borderRadius: 24,
-                  padding: 20,
-                  boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-                  position: "relative",
-                  cursor: "pointer",
-                }}
-              >
-                {o.unread && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 18,
-                      bottom: 18,
-                      width: 4,
-                      borderRadius: "0 999px 999px 0",
-                      background: "#3b82f6",
-                    }}
-                  />
-                )}
+  <div
+    key={o.id}
+    onClick={() => router.push(`/orders/${o.id}`)}
+    style={{
+      display: "block",
+      color: "#0f172a",
+      background: "#ffffff",
+      border: o.unread
+        ? "1px solid rgba(59,130,246,0.32)"
+        : "1px solid #e5e7eb",
+      borderRadius: 40,
+      padding: "26px 28px 22px",
+      boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+      position: "relative",
+      cursor: "pointer",
+    }}
+  >
+    {o.unread && (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 20,
+          bottom: 20,
+          width: 4,
+          borderRadius: "0 999px 999px 0",
+          background: "#3b82f6",
+        }}
+      />
+    )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 14,
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    style={{
-                      minWidth: 0,
-                      flex: 1,
-                      paddingLeft: o.unread ? 10 : 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                        gap: 12,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginBottom: 4,
-                            fontWeight: 600,
-                          }}
-                        >
-                          担当デザイナー
-                        </div>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.5fr 0.75fr 0.75fr auto",
+        gap: 24,
+        alignItems: "start",
+        paddingBottom: 16,
+        borderBottom: "3px solid #94a3b8",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: "#64748b",
+            marginBottom: 6,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+          }}
+        >
+          依頼案件名
+        </div>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#111827",
+            lineHeight: 1.35,
+            wordBreak: "break-word",
+          }}
+        >
+          {o.title || "未入力"}
+        </div>
+      </div>
 
-                        <select
-                          value={o.designer_name || ""}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            updateDesignerName(o.id, e.target.value);
-                          }}
-                          style={{
-                            width: "100%",
-                            minHeight: 44,
-                            padding: "10px 12px",
-                            borderRadius: 12,
-                            border: "1px solid #dbe2ea",
-                            background: "#f8fafc",
-                            color: "#0f172a",
-                            outline: "none",
-                            fontSize: 15,
-                            fontWeight: 700,
-                            boxSizing: "border-box",
-                          }}
-                        >
-                          {DESIGNER_OPTIONS.map((name) => (
-                            <option key={name || "empty"} value={name}>
-                              {name || "未設定"}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+      <div
+        style={{
+          minWidth: 0,
+          paddingLeft: 22,
+          borderLeft: "3px solid #94a3b8",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            color: "#64748b",
+            marginBottom: 6,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+          }}
+        >
+          使用店舗名
+        </div>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#111827",
+            lineHeight: 1.35,
+            wordBreak: "break-word",
+          }}
+        >
+          {o.store_name || "未入力"}
+        </div>
+      </div>
 
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginBottom: 4,
-                            fontWeight: 600,
-                          }}
-                        >
-                          依頼案件名
-                        </div>
-                       <div
-                           style={{
-                           fontSize: 18,
-                           fontWeight: 700,
-                           color: "#0f172a",
-                           wordBreak: "break-word",
-                         }}
-                       >
-                         {(o.display_id || "未採番")} {o.title}
-                       </div>
-                      </div>
+      <div
+        style={{
+          minWidth: 0,
+          paddingLeft: 22,
+          borderLeft: "3px solid #94a3b8",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            color: "#64748b",
+            marginBottom: 6,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+          }}
+        >
+          依頼者名
+        </div>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#111827",
+            lineHeight: 1.35,
+            wordBreak: "break-word",
+          }}
+        >
+          {o.contact_name || "未入力"}
+        </div>
+      </div>
 
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginBottom: 4,
-                            fontWeight: 600,
-                          }}
-                        >
-                          店舗名
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#0f172a",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {o.store_name || "未入力"}
-                        </div>
-                      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "flex-start",
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
 
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginBottom: 4,
-                            fontWeight: 600,
-                          }}
-                        >
-                          窓口担当者
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#0f172a",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {o.contact_name || "未入力"}
-                        </div>
-                      </div>
-                    </div>
+            const nextStatus: DisplayStatus =
+              o.display_status === "新規"
+                ? "進行中"
+                : o.display_status === "進行中"
+                ? "納品済み"
+                : o.display_status === "納品済み"
+                ? "アーカイブ"
+                : "進行中";
 
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 16,
-                        alignItems: "center",
-                        fontSize: 14,
-                        color: "#64748b",
-                      }}
-                    >
-                      <span>最新メッセージ：{formatDate(o.latest_message_at)}</span>
-                      <span>作成者：{o.created_by_name || "不明"}</span>
-                    </div>
-                  </div>
+            updateOrderStatus(o.id, nextStatus);
+          }}
+          style={{
+            minWidth: 156,
+            height: 62,
+            border: "none",
+            borderRadius: 999,
+            padding: "0 24px",
+            fontWeight: 900,
+            fontSize: 18,
+            cursor: "pointer",
+            background: statusStyle.bg,
+            color: statusStyle.text,
+            whiteSpace: "nowrap",
+            boxShadow: statusStyle.shadow,
+          }}
+          title="クリックで状態切り替え"
+        >
+          {o.display_status}
+        </button>
+      </div>
+    </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
+    <div
+      style={{
+        marginTop: 14,
+        display: "grid",
+        gridTemplateColumns: "1fr auto auto auto",
+        gap: 18,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 900,
+          color: "#64748b",
+          letterSpacing: "0.01em",
+          wordBreak: "break-word",
+        }}
+      >
+        オーダーID:{o.display_id || "未採番"}
+      </div>
 
-                        const nextStatus: DisplayStatus =
-                          o.display_status === "新規"
-                            ? "進行中"
-                            : o.display_status === "進行中"
-                            ? "納品済み"
-                            : o.display_status === "納品済み"
-                            ? "アーカイブ"
-                            : "進行中";
+      <div
+        style={{
+          fontSize: 14,
+          color: "#64748b",
+          fontWeight: 700,
+          whiteSpace: "nowrap",
+        }}
+      >
+        最新メッセージ：{formatDate(o.latest_message_at)}
+      </div>
 
-                        updateOrderStatus(o.id, nextStatus);
-                      }}
-                      style={{
-                        border: "none",
-                        borderRadius: 999,
-                        padding: "10px 14px",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                        background: statusStyle.bg,
-                        color: statusStyle.text,
-                        whiteSpace: "nowrap",
-                        boxShadow: statusStyle.shadow,
-                      }}
-                      title="クリックで状態切り替え"
-                    >
-                      {o.display_status}
-                    </button>
+      <div
+        style={{
+          fontSize: 14,
+          color: "#64748b",
+          fontWeight: 700,
+          whiteSpace: "nowrap",
+        }}
+      >
+        作成者：{o.created_by_name || "不明"}
+      </div>
 
-                    {o.unread_count > 0 && (
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          minWidth: 28,
-                          height: 28,
-                          padding: o.unread_count >= 10 ? "0 8px" : "0 0",
-                          borderRadius: 999,
-                          background: "#ef4444",
-                          color: "#ffffff",
-                          fontSize: 12,
-                          fontWeight: 800,
-                          boxShadow: "0 6px 16px rgba(239,68,68,0.28)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {o.unread_count > 99 ? "99+" : o.unread_count}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          justifyContent: "flex-end",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14,
+            color: "#64748b",
+            fontWeight: 800,
+            whiteSpace: "nowrap",
+          }}
+        >
+          担当デザイナー
+        </div>
+
+        <select
+          value={o.designer_name || ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation();
+            updateDesignerName(o.id, e.target.value);
+          }}
+          style={{
+            width: 260,
+            height: 42,
+            padding: "0 14px",
+            borderRadius: 999,
+            border: "2px solid #d1d5db",
+            background: "#ffffff",
+            color: "#0f172a",
+            outline: "none",
+            fontSize: 14,
+            fontWeight: 700,
+            boxSizing: "border-box",
+          }}
+        >
+          {DESIGNER_OPTIONS.map((name) => (
+            <option key={name || "empty"} value={name}>
+              {name || "未設定"}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    {o.unread_count > 0 && (
+      <div
+        style={{
+          position: "absolute",
+          right: 18,
+          top: 18,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minWidth: 28,
+          height: 28,
+          padding: o.unread_count >= 10 ? "0 8px" : "0 0",
+          borderRadius: 999,
+          background: "#ef4444",
+          color: "#ffffff",
+          fontSize: 12,
+          fontWeight: 800,
+          boxShadow: "0 6px 16px rgba(239,68,68,0.28)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {o.unread_count > 99 ? "99+" : o.unread_count}
+      </div>
+    )}
+  </div>
+);
           })}
         </div>
       </div>
