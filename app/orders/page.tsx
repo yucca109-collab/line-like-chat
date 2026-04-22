@@ -13,6 +13,8 @@ type OrderRow = {
   contact_name: string | null;
   designer_name: string | null;
   created_by_name: string | null;
+  display_id: string | null;
+  
 };
 
 type MessageRow = {
@@ -120,7 +122,7 @@ export default function OrdersPage() {
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .select(
-        "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name"
+        "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name,display_id"
       )
       .order("created_at", { ascending: false });
 
@@ -217,52 +219,79 @@ export default function OrdersPage() {
     setLoading(false);
   };
 
-  const createOrder = async () => {
-    setErr("");
+const createOrder = async () => {
+  setErr("");
 
-    const name = localStorage.getItem("user_name");
-    if (!name) {
-      router.push("/login");
-      return;
-    }
+  const name = localStorage.getItem("user_name");
+  if (!name) {
+    router.push("/login");
+    return;
+  }
 
-    const title = newTitle.trim();
-    const storeName = newStoreName.trim();
-    const contactName = newContactName.trim();
+  const title = newTitle.trim();
+  const storeName = newStoreName.trim();
+  const contactName = newContactName.trim();
 
-    if (!title) {
-      setErr("依頼案件名を入力してください");
-      return;
-    }
+  if (!title) {
+    setErr("依頼案件名を入力してください");
+    return;
+  }
 
-    setCreating(true);
+  setCreating(true);
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
-        title,
-        status: "新規",
-        store_name: storeName || null,
-        contact_name: contactName || null,
-        designer_name: null,
-        created_by_name: name,
-      })
-      .select("id")
-      .single();
+  // いま登録されている最後の display_id を取る
+  const { data: latestOrder, error: latestError } = await supabase
+    .from("orders")
+    .select("display_id")
+    .not("display_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
+  if (latestError) {
     setCreating(false);
+    setErr(`表示ID取得エラー: ${latestError.message}`);
+    return;
+  }
 
-    if (error) {
-      setErr(error.message);
-      return;
+  let nextNumber = 1001;
+
+  if (latestOrder?.display_id) {
+    const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
+    if (!Number.isNaN(parsed)) {
+      nextNumber = parsed + 1;
     }
+  }
 
-    setNewTitle("");
-    setNewStoreName("");
-    setNewContactName("");
+  const displayId = `#${nextNumber}`;
 
-    router.push(`/orders/${data.id}`);
-  };
+  const { data, error } = await supabase
+    .from("orders")
+    .insert({
+      title,
+      status: "新規",
+      store_name: storeName || null,
+      contact_name: contactName || null,
+      designer_name: null,
+      created_by_name: name,
+      display_id: displayId,
+    })
+    .select("id")
+    .single();
+
+  setCreating(false);
+
+  if (error) {
+    setErr(error.message);
+    return;
+  }
+
+  setNewTitle("");
+  setNewStoreName("");
+  setNewContactName("");
+
+  router.push(`/orders/${data.id}`);
+};
 
   const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
     setErr("");
@@ -821,16 +850,16 @@ export default function OrdersPage() {
                         >
                           依頼案件名
                         </div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#0f172a",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {o.title}
-                        </div>
+                       <div
+                           style={{
+                           fontSize: 18,
+                           fontWeight: 700,
+                           color: "#0f172a",
+                           wordBreak: "break-word",
+                         }}
+                       >
+                         {(o.display_id || "未採番")} {o.title}
+                       </div>
                       </div>
 
                       <div>
