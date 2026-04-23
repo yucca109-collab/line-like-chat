@@ -42,6 +42,52 @@ type MessageGroup =
       images: Message[];
     };
 
+type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
+
+const getDisplayStatus = (status: string): DisplayStatus => {
+  if (
+    status === "新規" ||
+    status === "進行中" ||
+    status === "納品済み" ||
+    status === "アーカイブ"
+  ) {
+    return status;
+  }
+  return "進行中";
+};
+
+const getStatusColor = (displayStatus: DisplayStatus) => {
+  if (displayStatus === "新規") {
+    return {
+      bg: "#f59e0b",
+      text: "#ffffff",
+      shadow: "0 6px 16px rgba(245,158,11,0.18)",
+    };
+  }
+
+  if (displayStatus === "納品済み") {
+    return {
+      bg: "#22c55e",
+      text: "#ffffff",
+      shadow: "0 6px 16px rgba(34,197,94,0.16)",
+    };
+  }
+
+  if (displayStatus === "アーカイブ") {
+    return {
+      bg: "#6b7280",
+      text: "#ffffff",
+      shadow: "0 6px 16px rgba(107,114,128,0.16)",
+    };
+  }
+
+  return {
+    bg: "#3b82f6",
+    text: "#ffffff",
+    shadow: "0 6px 16px rgba(59,130,246,0.16)",
+  };
+};
+
 export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -490,6 +536,9 @@ export default function OrderDetailPage() {
     }
   }
 
+  const currentStatus = getDisplayStatus(order?.status ?? "");
+  const statusStyle = getStatusColor(currentStatus);
+
   return (
     <div
       style={{
@@ -581,27 +630,59 @@ export default function OrderDetailPage() {
             >
               <div
                 style={{
-                  fontSize: 11,
-                  color: "#64748b",
-                  marginBottom: 6,
-                  fontWeight: 700,
-                  letterSpacing: "0.04em",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                ORDER DETAIL
-              </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#64748b",
+                      marginBottom: 6,
+                      fontWeight: 700,
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    ORDER DETAIL
+                  </div>
 
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(20px, 3vw, 26px)",
-                  lineHeight: 1.28,
-                  color: "#0f172a",
-                  wordBreak: "break-word",
-                }}
-              >
-                {order.title}
-              </h1>
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: "clamp(20px, 3vw, 26px)",
+                      lineHeight: 1.28,
+                      color: "#0f172a",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {order.title}
+                  </h1>
+                </div>
+
+                <div
+                  style={{
+                    minWidth: 110,
+                    height: 40,
+                    borderRadius: 999,
+                    padding: "0 16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: statusStyle.bg,
+                    color: statusStyle.text,
+                    fontWeight: 900,
+                    fontSize: 13,
+                    whiteSpace: "nowrap",
+                    boxShadow: statusStyle.shadow,
+                  }}
+                >
+                  {currentStatus}
+                </div>
+              </div>
 
               <div
                 style={{
@@ -1109,7 +1190,6 @@ export default function OrderDetailPage() {
                       cursor: sending ? "default" : "pointer",
                       boxShadow: "0 8px 20px rgba(6,199,85,0.25)",
                       flexShrink: 0,
-                      transform: "scale(0.96)"
                     }}
                   >
                     <svg
