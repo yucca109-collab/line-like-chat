@@ -1109,6 +1109,7 @@ export default function OrderDetailPage() {
                       cursor: sending ? "default" : "pointer",
                       boxShadow: "0 8px 20px rgba(6,199,85,0.25)",
                       flexShrink: 0,
+                      transform: "scale(0.96)"
                     }}
                   >
                     <svg
