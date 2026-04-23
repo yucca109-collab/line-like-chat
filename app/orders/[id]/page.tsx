@@ -788,14 +788,13 @@ export default function OrderDetailPage() {
               <div
                 ref={messagesBoxRef}
                 style={{
-                  border: "1px solid #b7d7c0",
+                  border: "1px solid rgba(255,255,255,0.08)",
                   borderRadius: 28,
                   padding: 16,
                   height: 560,
                   overflowY: "auto",
                   overflowX: "hidden",
-                  background:
-                    "linear-gradient(180deg, #4b5563 0%, #374151 100%)",
+                  background: "linear-gradient(180deg, #4b5563 0%, #374151 100%)",
                   boxSizing: "border-box",
                 }}
               >
@@ -806,7 +805,7 @@ export default function OrderDetailPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: "rgba(15,23,42,0.55)",
+                      color: "rgba(255,255,255,0.72)",
                       fontWeight: 700,
                     }}
                   >
@@ -842,7 +841,7 @@ export default function OrderDetailPage() {
                               <div
                                 style={{
                                   fontSize: 11,
-                                  color: "rgba(15,23,42,0.55)",
+                                  color: "rgba(255,255,255,0.75)",
                                   marginBottom: 6,
                                   textAlign: isMe ? "right" : "left",
                                   wordBreak: "break-word",
@@ -862,12 +861,12 @@ export default function OrderDetailPage() {
                                   whiteSpace: "pre-wrap",
                                   wordBreak: "break-word",
                                   overflowWrap: "anywhere",
-                                  background: isMe ? "#8de055" : "#ffffff",
-                                  color: "#0f172a",
+                                  background: isMe ? "#22c55e" : "#374151",
+                                  color: "#ffffff",
                                   border: isMe
-                                    ? "1px solid rgba(86,170,40,0.28)"
-                                    : "1px solid rgba(15,23,42,0.06)",
-                                  boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
+                                    ? "1px solid rgba(34,197,94,0.2)"
+                                    : "1px solid rgba(255,255,255,0.08)",
+                                  boxShadow: "0 6px 16px rgba(0,0,0,0.22)",
                                 }}
                               >
                                 {m.content && <div>{m.content}</div>}
@@ -884,7 +883,7 @@ export default function OrderDetailPage() {
                                       marginTop: m.content ? 10 : 0,
                                       display: "block",
                                       objectFit: "cover",
-                                      background: "#f8fafc",
+                                      background: "#111827",
                                     }}
                                   />
                                 )}
@@ -911,7 +910,7 @@ export default function OrderDetailPage() {
                             <div
                               style={{
                                 fontSize: 11,
-                                color: "rgba(15,23,42,0.55)",
+                                color: "rgba(255,255,255,0.75)",
                                 marginBottom: 6,
                                 textAlign: group.isMe ? "right" : "left",
                                 fontWeight: 700,
@@ -926,11 +925,12 @@ export default function OrderDetailPage() {
                                 borderRadius: group.isMe
                                   ? "20px 20px 6px 20px"
                                   : "20px 20px 20px 6px",
-                                background: group.isMe ? "#8de055" : "#ffffff",
+                                background: group.isMe ? "#22c55e" : "#374151",
+                                color: "#ffffff",
                                 border: group.isMe
-                                  ? "1px solid rgba(86,170,40,0.28)"
-                                  : "1px solid rgba(15,23,42,0.06)",
-                                boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
+                                  ? "1px solid rgba(34,197,94,0.2)"
+                                  : "1px solid rgba(255,255,255,0.08)",
+                                boxShadow: "0 6px 16px rgba(0,0,0,0.22)",
                               }}
                             >
                               <div
@@ -954,7 +954,7 @@ export default function OrderDetailPage() {
                                       objectFit: "cover",
                                       borderRadius: 12,
                                       display: "block",
-                                      background: "#f8fafc",
+                                      background: "#111827",
                                     }}
                                   />
                                 ))}
@@ -974,7 +974,7 @@ export default function OrderDetailPage() {
                   display: "flex",
                   alignItems: "center",
                   marginTop: 10,
-                  color: "#4b5563",
+                  color: "rgba(255,255,255,0.78)",
                   fontSize: 13,
                   fontWeight: 700,
                 }}
