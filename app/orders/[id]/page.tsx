@@ -1098,19 +1098,30 @@ export default function OrderDetailPage() {
                     type="submit"
                     disabled={sending}
                     style={{
+                      width: 46,
                       height: 46,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       background: sending ? "#9ca3af" : "#06c755",
-                      color: "#ffffff",
                       border: "none",
-                      borderRadius: 999,
-                      padding: "0 18px",
-                      fontWeight: 800,
+                      borderRadius: "50%",
                       cursor: sending ? "default" : "pointer",
-                      whiteSpace: "nowrap",
-                      boxShadow: "0 8px 20px rgba(6,199,85,0.22)",
+                      boxShadow: "0 8px 20px rgba(6,199,85,0.25)",
+                      flexShrink: 0,
                     }}
                   >
-                    {sending ? "送信中..." : "送信"}
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M3 20L21 12L3 4V10L15 12L3 14V20Z"
+                        fill="white"
+                      />
+                    </svg>
                   </button>
                 </div>
               </form>
