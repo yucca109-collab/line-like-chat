@@ -1104,51 +1104,59 @@ export default function OrderDetailPage() {
                     border: "1px solid #e5e7eb",
                   }}
                 >
-                  <textarea
-                    value={input}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setInput(value);
+                  
+<textarea
+  value={input}
+  onChange={(e) => {
+    const value = e.target.value;
+    setInput(value);
 
-                      if (!value.trim()) {
-                        updateTyping(false);
-                        clearTypingTimer();
-                        return;
-                      }
+    if (!value.trim()) {
+      updateTyping(false);
+      clearTypingTimer();
+      return;
+    }
 
-                      updateTyping(true);
-                      clearTypingTimer();
+    updateTyping(true);
+    clearTypingTimer();
 
-                      typingTimeoutRef.current = setTimeout(() => {
-                        updateTyping(false);
-                        typingTimeoutRef.current = null;
-                      }, 1500);
-                    }}
-                    onBlur={() => {
-                      updateTyping(false);
-                      clearTypingTimer();
-                    }}
-                    placeholder="メッセージを入力"
-                    rows={1}
-                    style={{
-                      flex: "1 1 280px",
-                      minWidth: 0,
-                      minHeight: 46,
-                      maxHeight: 160,
-                      padding: "12px 16px",
-                      borderRadius: 20,
-                      border: "1px solid #dbe2ea",
-                      background: "#ffffff",
-                      color: "#334155",
-                      outline: "none",
-                      boxSizing: "border-box",
-                      fontSize: 15,
-                      resize: "none",
-                      lineHeight: 1.5,
-                      overflowY: "auto",
-                      fontFamily: "inherit",
-                    }}
-                  />
+    typingTimeoutRef.current = setTimeout(() => {
+      updateTyping(false);
+      typingTimeoutRef.current = null;
+    }, 1500);
+  }}
+  onInput={(e) => {
+    const target = e.currentTarget;
+    target.style.height = "46px";
+    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+  }}
+  onBlur={() => {
+    updateTyping(false);
+    clearTypingTimer();
+  }}
+  placeholder="メッセージを入力"
+  rows={1}
+  style={{
+    flex: "1 1 280px",
+    minWidth: 0,
+    minHeight: 46,
+    height: "46px",
+    maxHeight: 120,
+    padding: "12px 16px",
+    borderRadius: 20,
+    border: "1px solid #dbe2ea",
+    background: "#ffffff",
+    color: "#334155",
+    outline: "none",
+    boxSizing: "border-box",
+    fontSize: 15,
+    resize: "none",
+    lineHeight: 1.5,
+    overflowY: "auto",
+    fontFamily: "inherit",
+    display: "block",
+  }}
+/>
 
                   <button
                     type="button"
