@@ -34,6 +34,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const event = body?.events?.[0];
+    const eventType = event?.type;
     const replyToken = event?.replyToken;
     const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
@@ -41,6 +42,29 @@ export async function POST(req: Request) {
     if (!replyToken) {
       return NextResponse.json({ ok: true });
     }
+
+if (eventType === "follow") {
+
+  if (userId) {
+    await supabase.from("line_users").upsert(
+      {
+        line_user_id: userId,
+        created_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "line_user_id",
+      }
+    );
+  }
+
+  await replyMessage(
+    replyToken,
+    "ご登録ありがとうございます！\n案件検索や進行確認が可能です。"
+  );
+
+  return NextResponse.json({ ok: true });
+}
+    
 
 if (userMessage === "自分の案件") {
   const { data, error } = await supabase
@@ -90,11 +114,7 @@ if (userMessage === "自分の案件") {
     }
 
 if (!data) {
-  await replyMessage(
-    replyToken,
-    `あなたのLINE ID:\n${userId}`
-  );
-
+  await replyMessage(replyToken, "該当する案件が見つかりませんでした。");
   return NextResponse.json({ ok: true });
 }
 
