@@ -1136,7 +1136,13 @@ export default function OrderDetailPage() {
                   }}
                 >
                   <input
-                    value={input}
+                　  value={input}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
                     onChange={(e) => {
                       const value = e.target.value;
                       setInput(value);
