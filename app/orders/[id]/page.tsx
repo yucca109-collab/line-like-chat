@@ -1180,45 +1180,39 @@ export default function OrderDetailPage() {
                 </div>
 
                 <div
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 16,
-                    padding: "12px 14px",
-                    color: "#334155",
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                  }}
-                >
-                 <div
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 16,
-                    padding: "12px 14px",
-                    color: "#334155",
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 900,
-                      color: "#0f172a",
-                      marginBottom: 4,
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    オーダーID：{order.display_id || "未採番"}
-                  </div>
+  style={{
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    padding: "12px 14px",
+    color: "#334155",
+    fontSize: 13,
+    lineHeight: 1.7,
+  }}
+>
+  <div
+    style={{
+      fontWeight: 900,
+      color: "#0f172a",
+      marginBottom: 4,
+      wordBreak: "break-all",
+    }}
+  >
+    オーダーID：{order.display_id || "未採番"}
+  </div>
 
-                  <div>
-                    このチャットを呼び出すには、
-                    #から始まるオーダーIDを公式LINEで入力してください。
-                    <br />
-                    例：{order.display_id || "#1000"}
-                  </div>
-                </div>
+  <div>
+    このチャットを呼び出すには、
+    #から始まるオーダーIDを公式LINEで入力してください。
+    <br />
+    例：{order.display_id || "#1000"}
+  </div>
+</div>
+
+
+
+
+                
 
                 {err && (
                   <div
