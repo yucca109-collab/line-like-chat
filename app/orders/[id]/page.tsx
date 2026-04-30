@@ -1125,6 +1125,12 @@ export default function OrderDetailPage() {
       typingTimeoutRef.current = null;
     }, 1500);
   }}
+  onKeyDown={(e) => {
+  if (e.key === "Enter" && e.ctrlKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}}
   onInput={(e) => {
     const target = e.currentTarget;
     target.style.height = "46px";
