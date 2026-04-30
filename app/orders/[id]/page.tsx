@@ -1154,7 +1154,8 @@ export default function OrderDetailPage() {
                   />
 
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={sendMessage}
                     disabled={sending}
                     style={{
                       width: 46,
