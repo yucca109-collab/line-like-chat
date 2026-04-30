@@ -15,12 +15,7 @@ async function replyMessage(replyToken: string, text: string) {
     },
     body: JSON.stringify({
       replyToken,
-      messages: [
-        {
-          type: "text",
-          text,
-        },
-      ],
+      messages: [{ type: "text", text }],
     }),
   });
 
@@ -28,6 +23,23 @@ async function replyMessage(replyToken: string, text: string) {
     const errText = await res.text();
     console.error("LINE reply error:", errText);
   }
+}
+
+async function getLineProfile(userId: string) {
+  const res = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("LINE profile error:", errText);
+    return null;
+  }
+
+  return await res.json();
 }
 
 export async function POST(req: Request) {
@@ -43,63 +55,64 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-if (eventType === "follow") {
+    if (eventType === "follow") {
+      const profile = userId ? await getLineProfile(userId) : null;
 
-  if (userId) {
-    await supabase.from("line_users").upsert(
-      {
-        line_user_id: userId,
-        created_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "line_user_id",
+      if (userId) {
+        await supabase.from("line_users").upsert(
+          {
+            line_user_id: userId,
+            line_name: profile?.displayName || null,
+            created_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "line_user_id",
+          }
+        );
       }
-    );
-  }
 
-  await replyMessage(
-    replyToken,
-    "ご登録ありがとうございます！\n案件検索や進行確認が可能です。"
-  );
+      await replyMessage(
+        replyToken,
+        "ご登録ありがとうございます！\n案件検索や進行確認が可能です。"
+      );
 
-  return NextResponse.json({ ok: true });
-}
-    
+      return NextResponse.json({ ok: true });
+    }
 
-if (userMessage === "自分の案件") {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id,display_id,title,status,store_name,designer_name,contact_name")
-    .eq("line_user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(10);
+    if (userMessage === "自分の案件") {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id,display_id,title,status,store_name,designer_name,contact_name")
+        .eq("line_user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-  if (error) {
-    console.error("Supabase error:", error.message);
-    await replyMessage(replyToken, "自分の案件の検索中にエラーが発生しました。");
-    return NextResponse.json({ ok: true });
-  }
+      if (error) {
+        console.error("Supabase error:", error.message);
+        await replyMessage(replyToken, "自分の案件の検索中にエラーが発生しました。");
+        return NextResponse.json({ ok: true });
+      }
 
-  if (!data || data.length === 0) {
-    await replyMessage(replyToken, "あなたに紐づいた案件はまだありません。");
-    return NextResponse.json({ ok: true });
-  }
+      if (!data || data.length === 0) {
+        await replyMessage(replyToken, "あなたに紐づいた案件はまだありません。");
+        return NextResponse.json({ ok: true });
+      }
 
-  const text = data
-    .map((order) =>
-      [
-        `${order.display_id}`,
-        `案件名【 ${order.title || "未設定"}】`,
-        `店舗名: ${order.store_name || "未設定"}`,
-        `状態: ${order.status || "未設定"}`,
-        `詳細: https://app.1best.info/orders/${order.id}`,
-      ].join("\n")
-    )
-    .join("\n\n────────\n\n");
+      const text = data
+        .map((order) =>
+          [
+            `${order.display_id}`,
+            `案件名【 ${order.title || "未設定"}】`,
+            `店舗名: ${order.store_name || "未設定"}`,
+            `状態: ${order.status || "未設定"}`,
+            `詳細: https://app.1best.info/orders/${order.id}`,
+          ].join("\n")
+        )
+        .join("\n\n────────\n\n");
 
-  await replyMessage(replyToken, text);
-  return NextResponse.json({ ok: true });
-}
+      await replyMessage(replyToken, text);
+      return NextResponse.json({ ok: true });
+    }
 
     const { data, error } = await supabase
       .from("orders")
@@ -113,10 +126,10 @@ if (userMessage === "自分の案件") {
       return NextResponse.json({ ok: true });
     }
 
-if (!data) {
-  await replyMessage(replyToken, "該当する案件が見つかりませんでした。");
-  return NextResponse.json({ ok: true });
-}
+    if (!data) {
+      await replyMessage(replyToken, "該当する案件が見つかりませんでした。");
+      return NextResponse.json({ ok: true });
+    }
 
     const text = [
       `案件名【 ${data.title || "未設定"}】`,
