@@ -942,7 +942,7 @@ export default function OrderDetailPage() {
                 {otherTyping ? "入力中..." : ""}
               </div>
 
-              <form
+              <div
                 onSubmit={(e) => {
                   e.preventDefault();
                   sendMessage();
@@ -1225,7 +1225,7 @@ export default function OrderDetailPage() {
                     {err}
                   </div>
                 )}
-              </form>
+              </div>
             </div>
           </>
         )}
