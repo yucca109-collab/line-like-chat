@@ -12,6 +12,7 @@ type Order = {
   contact_name: string | null;
   created_by_name: string | null;
   created_at: string;
+  display_id: string | null;
 };
 
 type Message = {
@@ -133,7 +134,9 @@ export default function OrderDetailPage() {
 
     const { data: orderData, error: orderErr } = await supabase
       .from("orders")
-      .select("id,title,status,store_name,contact_name,created_by_name,created_at")
+      .select(
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id"
+      )
       .eq("id", orderId)
       .single();
 
@@ -1187,6 +1190,17 @@ export default function OrderDetailPage() {
                     lineHeight: 1.7,
                   }}
                 >
+                 <div
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 16,
+                    padding: "12px 14px",
+                    color: "#334155",
+                    fontSize: 13,
+                    lineHeight: 1.7,
+                  }}
+                >
                   <div
                     style={{
                       fontWeight: 900,
@@ -1195,12 +1209,14 @@ export default function OrderDetailPage() {
                       wordBreak: "break-all",
                     }}
                   >
-                    オーダーID：#{order.id}
+                    オーダーID：{order.display_id || "未採番"}
                   </div>
+
                   <div>
-                    このチャットを呼び出すには、#から始まるオーダーIDを公式LINEで入力してください。
+                    このチャットを呼び出すには、
+                    #から始まるオーダーIDを公式LINEで入力してください。
                     <br />
-                    例：#{order.id}
+                    例：{order.display_id || "#1000"}
                   </div>
                 </div>
 
