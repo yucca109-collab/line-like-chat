@@ -209,7 +209,7 @@ export default function LoginPage() {
             window.open("https://1best.info/gen_v1/", "_blank");
           }}
          style={{
-            width: "70%",
+            width: "80%",
               height: 64,
               margin: "0 auto", 
               display: "block",
