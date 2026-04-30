@@ -302,9 +302,11 @@ export default function OrderDetailPage() {
           .from("chat-images")
           .upload(filePath, file);
 
-        if (uploadError) {
-          throw new Error(uploadError.message);
-        }
+       if (file.size > 5 * 1024 * 1024) {
+  throw new Error(
+    `「${file.name}」のサイズが大きすぎます（5MB以下）`
+  );
+}
 
         const { data } = supabase.storage
           .from("chat-images")
@@ -597,22 +599,6 @@ export default function OrderDetailPage() {
         {loading && (
           <p style={{ marginTop: 12, color: "#475569" }}>
             読み込み中...
-          </p>
-        )}
-
-        {err && (
-          <p
-            style={{
-              marginTop: 12,
-              color: "#dc2626",
-              background: "#ffffff",
-              border: "1px solid #fecaca",
-              padding: "12px 14px",
-              borderRadius: 14,
-              boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-            }}
-          >
-            エラー: {err}
           </p>
         )}
 
@@ -1212,6 +1198,24 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
               </form>
+              
+          {err && (
+          <p
+            style={{
+              marginTop: 12,
+              color: "#dc2626",
+              background: "#ffffff",
+              border: "1px solid #fecaca",
+              padding: "12px 14px",
+              borderRadius: 14,
+              boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
+            }}
+          >
+            エラー: {err}
+          </p>
+        )}
+
+              
             </div>
           </>
         )}
