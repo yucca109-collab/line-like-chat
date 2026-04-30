@@ -138,7 +138,7 @@ export default function OrderDetailPage() {
       .single();
 
     if (orderErr) {
-      setErr(orderErr.message);
+      setErr("案件情報の読み込みに失敗しました");
       setLoading(false);
       return;
     }
@@ -152,7 +152,7 @@ export default function OrderDetailPage() {
       .order("created_at", { ascending: true });
 
     if (msgErr) {
-      setErr(msgErr.message);
+      setErr("メッセージの読み込みに失敗しました");
     } else {
       setMessages((msgData ?? []) as Message[]);
     }
@@ -247,14 +247,12 @@ export default function OrderDetailPage() {
         console.error("既読更新エラー:", updateError.message);
       }
     } else {
-      const { error: insertError } = await supabase
-        .from("order_reads")
-        .insert({
-          order_id: orderId,
-          user_name: name,
-          last_read_at: now,
-          updated_at: now,
-        });
+      const { error: insertError } = await supabase.from("order_reads").insert({
+        order_id: orderId,
+        user_name: name,
+        last_read_at: now,
+        updated_at: now,
+      });
 
       if (insertError) {
         console.error("既読作成エラー:", insertError.message);
@@ -292,6 +290,10 @@ export default function OrderDetailPage() {
       const uploadedImageUrls: string[] = [];
 
       for (const file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`);
+        }
+
         const fileExt = file.name.split(".").pop() || "jpg";
         const fileName = `${Date.now()}-${Math.random()
           .toString(36)
@@ -302,11 +304,9 @@ export default function OrderDetailPage() {
           .from("chat-images")
           .upload(filePath, file);
 
-       if (file.size > 5 * 1024 * 1024) {
-  throw new Error(
-    `「${file.name}」のサイズが大きすぎます（5MB以下）`
-  );
-}
+        if (uploadError) {
+          throw new Error("画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。");
+        }
 
         const { data } = supabase.storage
           .from("chat-images")
@@ -346,7 +346,7 @@ export default function OrderDetailPage() {
         .select("id,order_id,content,image_url,sender_name,created_at");
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error("メッセージの送信に失敗しました");
       }
 
       if (insertedRows) {
@@ -509,8 +509,10 @@ export default function OrderDetailPage() {
 
       const closeInTime =
         Math.abs(
-          new Date(next.created_at).getTime() - new Date(current.created_at).getTime()
-        ) < 60 * 1000;
+          new Date(next.created_at).getTime() -
+            new Date(current.created_at).getTime()
+        ) <
+        60 * 1000;
 
       if (
         nextIsImageOnly &&
@@ -597,9 +599,7 @@ export default function OrderDetailPage() {
         </div>
 
         {loading && (
-          <p style={{ marginTop: 12, color: "#475569" }}>
-            読み込み中...
-          </p>
+          <p style={{ marginTop: 12, color: "#475569" }}>読み込み中...</p>
         )}
 
         {order && (
@@ -678,34 +678,25 @@ export default function OrderDetailPage() {
                   marginTop: 10,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#64748b",
-                    fontWeight: 700,
-                  }}
-                >
-                  店舗名：<span style={{ color: "#111827" }}>{order.store_name || "未入力"}</span>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+                  店舗名：
+                  <span style={{ color: "#111827" }}>
+                    {order.store_name || "未入力"}
+                  </span>
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#64748b",
-                    fontWeight: 700,
-                  }}
-                >
-                  依頼者名：<span style={{ color: "#111827" }}>{order.contact_name || "未入力"}</span>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+                  依頼者名：
+                  <span style={{ color: "#111827" }}>
+                    {order.contact_name || "未入力"}
+                  </span>
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#64748b",
-                    fontWeight: 700,
-                  }}
-                >
-                  作成者：<span style={{ color: "#111827" }}>{order.created_by_name || "未入力"}</span>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+                  作成者：
+                  <span style={{ color: "#111827" }}>
+                    {order.created_by_name || "未入力"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -806,12 +797,7 @@ export default function OrderDetailPage() {
                               justifyContent: isMe ? "flex-end" : "flex-start",
                             }}
                           >
-                            <div
-                              style={{
-                                width: "100%",
-                                maxWidth: "min(78%, 520px)",
-                              }}
-                            >
+                            <div style={{ width: "100%", maxWidth: "min(78%, 520px)" }}>
                               <div
                                 style={{
                                   fontSize: 11,
@@ -822,7 +808,8 @@ export default function OrderDetailPage() {
                                   fontWeight: 700,
                                 }}
                               >
-                                {m.sender_name} ・ {new Date(m.created_at).toLocaleString("ja-JP")}
+                                {m.sender_name} ・{" "}
+                                {new Date(m.created_at).toLocaleString("ja-JP")}
                               </div>
 
                               <div
@@ -875,12 +862,7 @@ export default function OrderDetailPage() {
                             justifyContent: group.isMe ? "flex-end" : "flex-start",
                           }}
                         >
-                          <div
-                            style={{
-                              width: "100%",
-                              maxWidth: "min(78%, 520px)",
-                            }}
-                          >
+                          <div style={{ width: "100%", maxWidth: "min(78%, 520px)" }}>
                             <div
                               style={{
                                 fontSize: 11,
@@ -890,7 +872,8 @@ export default function OrderDetailPage() {
                                 fontWeight: 700,
                               }}
                             >
-                              {group.sender_name} ・ {new Date(group.created_at).toLocaleString("ja-JP")}
+                              {group.sender_name} ・{" "}
+                              {new Date(group.created_at).toLocaleString("ja-JP")}
                             </div>
 
                             <div
@@ -948,7 +931,7 @@ export default function OrderDetailPage() {
                   display: "flex",
                   alignItems: "center",
                   marginBottom: 10,
-                  color: "rgba(255,255,255,0.78)",
+                  color: "#64748b",
                   fontSize: 13,
                   fontWeight: 700,
                 }}
@@ -1121,14 +1104,8 @@ export default function OrderDetailPage() {
                     border: "1px solid #e5e7eb",
                   }}
                 >
-                  <input
-                　  value={input}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
+                  <textarea
+                    value={input}
                     onChange={(e) => {
                       const value = e.target.value;
                       setInput(value);
@@ -1152,18 +1129,24 @@ export default function OrderDetailPage() {
                       clearTypingTimer();
                     }}
                     placeholder="メッセージを入力"
+                    rows={1}
                     style={{
                       flex: "1 1 280px",
                       minWidth: 0,
-                      height: 46,
-                      padding: "0 16px",
-                      borderRadius: 999,
+                      minHeight: 46,
+                      maxHeight: 160,
+                      padding: "12px 16px",
+                      borderRadius: 20,
                       border: "1px solid #dbe2ea",
                       background: "#ffffff",
                       color: "#334155",
                       outline: "none",
                       boxSizing: "border-box",
                       fontSize: 15,
+                      resize: "none",
+                      lineHeight: 1.5,
+                      overflowY: "auto",
+                      fontFamily: "inherit",
                     }}
                   />
 
@@ -1184,12 +1167,7 @@ export default function OrderDetailPage() {
                       flexShrink: 0,
                     }}
                   >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M3 20L21 12L3 4V10L15 12L3 14V20Z"
                         fill="white"
@@ -1197,32 +1175,60 @@ export default function OrderDetailPage() {
                     </svg>
                   </button>
                 </div>
-              </form>
-              
-          {err && (
-          <p
-            style={{
-              marginTop: 12,
-              color: "#dc2626",
-              background: "#ffffff",
-              border: "1px solid #fecaca",
-              padding: "12px 14px",
-              borderRadius: 14,
-              boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-            }}
-          >
-            エラー: {err}
-          </p>
-        )}
 
-              
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 16,
+                    padding: "12px 14px",
+                    color: "#334155",
+                    fontSize: 13,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      color: "#0f172a",
+                      marginBottom: 4,
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    オーダーID：#{order.id}
+                  </div>
+                  <div>
+                    このチャットを呼び出すには、#から始まるオーダーIDを公式LINEで入力してください。
+                    <br />
+                    例：#{order.id}
+                  </div>
+                </div>
+
+                {err && (
+                  <div
+                    style={{
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#dc2626",
+                      borderRadius: 14,
+                      padding: "12px 14px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {err}
+                  </div>
+                )}
+              </form>
             </div>
           </>
         )}
       </div>
 
       <style jsx>{`
-        input:focus {
+        input:focus,
+        textarea:focus {
           border-color: #94a3b8 !important;
           background: #ffffff !important;
           box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
