@@ -928,7 +928,7 @@ export default function OrderDetailPage() {
                 )}
               </div>
 
-              <div
+                            <div
                 style={{
                   minHeight: 22,
                   display: "flex",
@@ -943,10 +943,6 @@ export default function OrderDetailPage() {
               </div>
 
               <div
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  sendMessage();
-                }}
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -1032,7 +1028,8 @@ export default function OrderDetailPage() {
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(120px, 1fr))",
                         gap: 12,
                       }}
                     >
@@ -1228,6 +1225,7 @@ export default function OrderDetailPage() {
                 )}
               </div>
             </div>
+          </>
         )}
       </div>
 
