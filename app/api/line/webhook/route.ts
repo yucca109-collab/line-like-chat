@@ -64,7 +64,7 @@ if (userMessage === "自分の案件") {
   const text = data
     .map((order) =>
       [
-        `#${order.display_id}`,
+        `${order.display_id}`,
         `案件名【 ${order.title || "未設定"}】`,
         `店舗名: ${order.store_name || "未設定"}`,
         `状態: ${order.status || "未設定"}`,
