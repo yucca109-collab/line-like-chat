@@ -35,16 +35,21 @@ export async function POST(req: Request) {
     const body = await req.json();
     const event = body?.events?.[0];
     const replyToken = event?.replyToken;
+    const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
 
     if (!replyToken) {
       return NextResponse.json({ ok: true });
     }
 
-    if (!userMessage) {
-      await replyMessage(replyToken, "依頼IDを送ってください。");
-      return NextResponse.json({ ok: true });
-    }
+if (!userMessage) {
+  await replyMessage(
+    replyToken,
+    `あなたのLINE ID:\n${userId}`
+  );
+
+  return NextResponse.json({ ok: true });
+}
 
     const { data, error } = await supabase
       .from("orders")
@@ -58,10 +63,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (!data) {
-      await replyMessage(replyToken, "その依頼IDは見つかりませんでした。");
-      return NextResponse.json({ ok: true });
-    }
+if (!data) {
+  await replyMessage(
+    replyToken,
+    `あなたのLINE ID:\n${userId}`
+  );
+
+  return NextResponse.json({ ok: true });
+}
 
     const text = [
       `案件名【 ${data.title || "未設定"}】`,
