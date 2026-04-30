@@ -42,12 +42,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-if (!userMessage) {
-  await replyMessage(
-    replyToken,
-    `あなたのLINE ID:\n${userId}`
-  );
+if (userMessage === "自分の案件") {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id,display_id,title,status,store_name,designer_name,contact_name")
+    .eq("line_user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10);
 
+  if (error) {
+    console.error("Supabase error:", error.message);
+    await replyMessage(replyToken, "自分の案件の検索中にエラーが発生しました。");
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!data || data.length === 0) {
+    await replyMessage(replyToken, "あなたに紐づいた案件はまだありません。");
+    return NextResponse.json({ ok: true });
+  }
+
+  const text = data
+    .map((order) =>
+      [
+        `#${order.display_id}`,
+        `案件名【 ${order.title || "未設定"}】`,
+        `店舗名: ${order.store_name || "未設定"}`,
+        `状態: ${order.status || "未設定"}`,
+        `詳細: https://app.1best.info/orders/${order.id}`,
+      ].join("\n")
+    )
+    .join("\n\n────────\n\n");
+
+  await replyMessage(replyToken, text);
   return NextResponse.json({ ok: true });
 }
 
