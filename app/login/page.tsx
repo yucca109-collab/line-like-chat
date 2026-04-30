@@ -217,7 +217,7 @@ export default function LoginPage() {
               borderRadius: 999,
               background: "linear-gradient(90deg, #ff007a, #ff4da6)",
               color: "#fff",
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 700,
               boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
               cursor: "pointer",
