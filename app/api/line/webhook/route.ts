@@ -123,6 +123,21 @@ if (eventType === "follow") {
       return NextResponse.json({ ok: true });
     }
 
+
+      if (userMessage === "お問い合わせ") {
+        await replyMessage(
+          replyToken,
+          "お問い合わせありがとうございます。\n内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
+        );
+
+        return NextResponse.json({ ok: true });
+      }
+      
+
+
+
+    
+
     const { data, error } = await supabase
       .from("orders")
       .select("id,title,status,store_name,designer_name,contact_name")
