@@ -51,25 +51,34 @@ export async function POST(req: Request) {
     const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
 
-    if (!replyToken) {
-      return NextResponse.json({ ok: true });
-    }
+   if (!replyToken) {
+  return NextResponse.json({ ok: true });
+}
 
-    if (eventType === "follow") {
-      const profile = userId ? await getLineProfile(userId) : null;
+// タブ切り替え時のpostbackを無視
+if (eventType === "postback") {
+  const data = event?.postback?.data;
 
-      if (userId) {
-        await supabase.from("line_users").upsert(
-          {
-            line_user_id: userId,
-            line_name: profile?.displayName || null,
-            created_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "line_user_id",
-          }
-        );
+  if (data === "switch-help" || data === "switch-main") {
+    return NextResponse.json({ ok: true });
+  }
+}
+
+if (eventType === "follow") {
+  const profile = userId ? await getLineProfile(userId) : null;
+
+  if (userId) {
+    await supabase.from("line_users").upsert(
+      {
+        line_user_id: userId,
+        line_name: profile?.displayName || null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "line_user_id",
       }
+    );
+  }
 
       await replyMessage(
         replyToken,
