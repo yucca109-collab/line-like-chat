@@ -51,34 +51,37 @@ export async function POST(req: Request) {
     const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
 
-   if (!replyToken) {
-  return NextResponse.json({ ok: true });
-}
+    if (!replyToken) {
+      return NextResponse.json({ ok: true });
+    }
 
-// タブ切り替え時のpostbackを無視
-if (eventType === "postback") {
-  const data = event?.postback?.data;
+    // タブ切り替え時のpostbackを無視
+    if (eventType === "postback") {
+      const data = event?.postback?.data;
 
-  if (data === "switch-help" || data === "switch-main") {
-    return NextResponse.json({ ok: true });
-  }
-}
-
-if (eventType === "follow") {
-  const profile = userId ? await getLineProfile(userId) : null;
-
-  if (userId) {
-    await supabase.from("line_users").upsert(
-      {
-        line_user_id: userId,
-        line_name: profile?.displayName || null,
-        created_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "line_user_id",
+      if (data === "switch-help" || data === "switch-main") {
+        return NextResponse.json({ ok: true });
       }
-    );
-  }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // 友だち追加時
+    if (eventType === "follow") {
+      const profile = userId ? await getLineProfile(userId) : null;
+
+      if (userId) {
+        await supabase.from("line_users").upsert(
+          {
+            line_user_id: userId,
+            line_name: profile?.displayName || null,
+            created_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "line_user_id",
+          }
+        );
+      }
 
       await replyMessage(
         replyToken,
@@ -88,6 +91,12 @@ if (eventType === "follow") {
       return NextResponse.json({ ok: true });
     }
 
+    // テキストメッセージ以外は無視
+    if (eventType !== "message" || !userMessage) {
+      return NextResponse.json({ ok: true });
+    }
+
+    // 自分の案件一覧
     if (userMessage === "自分の案件") {
       const { data, error } = await supabase
         .from("orders")
@@ -123,21 +132,23 @@ if (eventType === "follow") {
       return NextResponse.json({ ok: true });
     }
 
+    // お問い合わせ案内
+    if (userMessage === "お問い合わせ") {
+      await replyMessage(
+        replyToken,
+        "お問い合わせありがとうございます。\n左下のキーボードマークに切り替えて、内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
+      );
 
-      if (userMessage === "お問い合わせ") {
-        await replyMessage(
-          replyToken,
-          "お問い合わせありがとうございます。\n左下のキーボードマークに切り替えて、内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
-        );
+      return NextResponse.json({ ok: true });
+    }
 
-        return NextResponse.json({ ok: true });
-      }
-      
+    // #から始まるオーダーID以外は案件検索しない
+    // 問い合わせ本文などはここで静かに受け取って終了
+    if (!userMessage.startsWith("#")) {
+      return NextResponse.json({ ok: true });
+    }
 
-
-
-    
-
+    // オーダーID検索
     const { data, error } = await supabase
       .from("orders")
       .select("id,title,status,store_name,designer_name,contact_name")
