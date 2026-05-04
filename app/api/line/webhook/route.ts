@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 
       await replyMessage(
         replyToken,
-        "ご登録ありがとうございます！\n案件検索や進行確認が可能です。"
+        "ご登録ありがとうございます！\n案件検索や進行確認が可能です。\n\n⚠️まず「その他／お役立ち」メニューの\n右下にある【お問い合わせ】ボタンを押して\nパスワードの付与を\nお待ちください🙇‍♀️"
       );
 
       return NextResponse.json({ ok: true });
