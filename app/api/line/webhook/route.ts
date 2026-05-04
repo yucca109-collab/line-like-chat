@@ -136,7 +136,7 @@ export async function POST(req: Request) {
     if (userMessage === "お問い合わせ") {
       await replyMessage(
         replyToken,
-        "お問い合わせありがとうございます。\n左下のキーボードマークに切り替えて、内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
+        "お問い合わせありがとうございます。\n左下のキーボードマークに切り替えて、\n内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
       );
 
       return NextResponse.json({ ok: true });
