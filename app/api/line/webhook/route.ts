@@ -136,8 +136,8 @@ export async function POST(req: Request) {
     if (userMessage === "お問い合わせ") {
       await replyMessage(
         replyToken,
-        "お問い合わせありがとうございます。\n左下のキーボードマークに切り替えて、\n内容をそのままこのトークに送ってください。\n確認後、担当者より返信いたします。"
-      );
+        "┏━━━━━━━━━━┓\n　💬 お問い合わせ受付\n┗━━━━━━━━━━┛\n\n内容をそのまま\nこのトークへ送信してください◎\n\n確認後、担当者より\n順次返信いたします。\n\n※ パスワード付与をご希望の場合、\n確認まで少々お時間をいただく場合があります🙇‍♀️"
+);
 
       return NextResponse.json({ ok: true });
     }
