@@ -167,11 +167,8 @@ export async function POST(req: Request) {
     }
 
     const text = [
+      "こちらの案件に移動します。",
       `案件名【 ${data.title || "未設定"}】`,
-      `店舗名: ${data.store_name || "未設定"}`,
-      `状態: ${data.status || "未設定"}`,
-      `担当デザイナー: ${data.designer_name || "未設定"}`,
-      `窓口担当者: ${data.contact_name || "未設定"}`,
       `詳細: https://app.1best.info/orders/${data.id}`,
     ].join("\n");
 
