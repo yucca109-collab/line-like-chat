@@ -2,19 +2,22 @@
   "name": "line-like-chat",
   "version": "0.1.0",
   "private": true,
+
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
+
   "dependencies": {
-  "@line/liff": "^2.27.0",
-  "@supabase/supabase-js": "...",
-  "next": "...",
-  "react": "...",
-  "react-dom": "..."
-}
+    "@line/liff": "^2.27.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "next": "16.1.6",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
