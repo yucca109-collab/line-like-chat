@@ -324,7 +324,6 @@ export default function OrdersPage() {
 
 const notifyText = await notifyRes.text();
 
-alert(`通知結果: ${notifyRes.status}\n${notifyText}`);
 
     
     setNewTitle("");
