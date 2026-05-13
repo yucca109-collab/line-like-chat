@@ -28,7 +28,9 @@ export default function LoginPage() {
         localStorage.setItem("line_user_id", profile.userId);
         localStorage.setItem("user_name", profile.displayName);
 
-        router.replace("/orders");
+        router.replace(
+  `/orders?line_user_id=${encodeURIComponent(profile.userId)}&line_name=${encodeURIComponent(profile.displayName)}`
+);
         return;
       } catch (err) {
         console.error("LIFF ERROR", err);
