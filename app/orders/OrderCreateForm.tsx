@@ -53,14 +53,19 @@ export default function OrderCreateForm({ onCreated }: Props) {
 
     setLoading(true);
 
-    const { error } = await supabase.from("orders").insert({
-      title,
-      store_name: store,
-      contact_name: contact,
-      created_by_name: name,
-      created_by_line_user_id: lineUserId,
-      status: "new",
-    });
+    const { data, error } = await supabase
+  .from("orders")
+  .insert({
+    title,
+    store_name: store,
+    contact_name: contact,
+    created_by_name: name,
+    created_by_line_user_id: lineUserId,
+    status: "new",
+  })
+  .select()
+  .single();
+    
 
     setLoading(false);
 
