@@ -26,33 +26,32 @@ export default function LoginPage() {
         }
 
         let lineUserId = "";
-        let lineName = "";
 
         try {
           const profile = await liff.getProfile();
           lineUserId = profile.userId;
-          lineName = profile.displayName;
         } catch {
           const token = liff.getDecodedIDToken();
           lineUserId = token?.sub || "";
-          lineName = token?.name || "LINEユーザー";
         }
 
-        if (!lineUserId) {
-          throw new Error("LINEユーザーIDが取得できません");
+        if (lineUserId) {
+          localStorage.setItem("line_user_id", lineUserId);
         }
 
-        localStorage.setItem("line_user_id", lineUserId);
-        localStorage.setItem("user_name", lineName);
+        const savedName = localStorage.getItem("user_name");
+        if (savedName) {
+          setName(savedName);
+        }
 
-        window.location.href = `/orders?line_user_id=${encodeURIComponent(
-          lineUserId
-        )}&line_name=${encodeURIComponent(lineName)}`;
+        setChecking(false);
       } catch (err) {
         console.error("LIFF ERROR", err);
 
-        const saved = localStorage.getItem("user_name");
-        if (saved) setName(saved);
+        const savedName = localStorage.getItem("user_name");
+        if (savedName) {
+          setName(savedName);
+        }
 
         setChecking(false);
       }
@@ -73,6 +72,18 @@ export default function LoginPage() {
     }
 
     localStorage.setItem("user_name", name.trim());
+
+    const lineUserId = localStorage.getItem("line_user_id");
+
+    if (lineUserId) {
+      router.push(
+        `/orders?line_user_id=${encodeURIComponent(lineUserId)}&line_name=${encodeURIComponent(
+          name.trim()
+        )}`
+      );
+      return;
+    }
+
     router.push("/orders");
   };
 
@@ -144,7 +155,7 @@ export default function LoginPage() {
                 display: "inline-block",
               }}
             />
-            社内用ページ
+            LINE認証済み
           </div>
 
           <p
@@ -155,7 +166,7 @@ export default function LoginPage() {
               color: "#64748b",
             }}
           >
-            担当者名とパスコードを入力して、案件一覧へ進みます。
+            表示する担当者名とパスコードを入力して、案件一覧へ進みます。
           </p>
         </div>
 
@@ -170,12 +181,12 @@ export default function LoginPage() {
                 marginBottom: 8,
               }}
             >
-              スタッフ名
+              担当者名
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例：山田太郎 / ワンベストタロウ"
+              placeholder="例：ハマダユカ / 吉本 / ワンベストタロウ"
               style={{
                 width: "100%",
                 height: 52,
@@ -197,7 +208,7 @@ export default function LoginPage() {
                 lineHeight: 1.6,
               }}
             >
-              ※ 毎回同じ名前でログインしてください
+              ※ 案件の作成者名として表示されます
             </p>
           </div>
 
