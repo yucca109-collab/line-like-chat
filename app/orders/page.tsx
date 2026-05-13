@@ -322,7 +322,7 @@ export default function OrdersPage() {
   }),
 });
 
-const notifyText = await notifyRes.text();
+
 
 
     
