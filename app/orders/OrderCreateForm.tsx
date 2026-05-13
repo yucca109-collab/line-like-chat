@@ -22,6 +22,7 @@ export default function OrderCreateForm({ onCreated }: Props) {
     const name = localStorage.getItem("user_name");
     const lineUserId = localStorage.getItem("line_user_id");
 
+    alert(`LINE USER ID = ${lineUserId}`);
 
     
     if (!name) {
