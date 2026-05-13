@@ -22,6 +22,8 @@ export default function OrderCreateForm({ onCreated }: Props) {
     const name = localStorage.getItem("user_name");
     const lineUserId = localStorage.getItem("line_user_id");
 
+
+    
     if (!name) {
       alert("ログインし直してください");
       return;
