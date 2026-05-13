@@ -18,24 +18,24 @@ export default function LoginPage() {
       try {
         await liff.init({ liffId: LIFF_ID });
 
-        if (liff.isInClient()) {
-          const profile = await liff.getProfile();
-
-          localStorage.setItem("line_user_id", profile.userId);
-          localStorage.setItem("user_name", profile.displayName);
-
-          router.replace("/orders");
+        if (!liff.isLoggedIn()) {
+          liff.login();
           return;
         }
 
-        const saved = localStorage.getItem("user_name");
-        if (saved) setName(saved);
+        const profile = await liff.getProfile();
+
+        localStorage.setItem("line_user_id", profile.userId);
+        localStorage.setItem("user_name", profile.displayName);
+
+        router.replace("/orders");
+        return;
       } catch (err) {
         console.error("LIFF ERROR", err);
 
         const saved = localStorage.getItem("user_name");
         if (saved) setName(saved);
-      } finally {
+
         setChecking(false);
       }
     };
