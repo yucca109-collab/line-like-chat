@@ -19,22 +19,37 @@ export default function LoginPage() {
         await liff.init({ liffId: LIFF_ID });
 
         if (!liff.isLoggedIn()) {
-          liff.login();
+          liff.login({
+            redirectUri: "https://app.1best.info/login",
+          });
           return;
         }
 
-        const profile = await liff.getProfile();
+        let lineUserId = "";
+        let lineName = "";
 
-        localStorage.setItem("line_user_id", profile.userId);
-        localStorage.setItem("user_name", profile.displayName);
+        try {
+          const profile = await liff.getProfile();
+          lineUserId = profile.userId;
+          lineName = profile.displayName;
+        } catch {
+          const token = liff.getDecodedIDToken();
+          lineUserId = token?.sub || "";
+          lineName = token?.name || "LINEユーザー";
+        }
 
-        router.replace(
-  `/orders?line_user_id=${encodeURIComponent(profile.userId)}&line_name=${encodeURIComponent(profile.displayName)}`
-);
-        return;
+        if (!lineUserId) {
+          throw new Error("LINEユーザーIDが取得できません");
+        }
+
+        localStorage.setItem("line_user_id", lineUserId);
+        localStorage.setItem("user_name", lineName);
+
+        window.location.href = `/orders?line_user_id=${encodeURIComponent(
+          lineUserId
+        )}&line_name=${encodeURIComponent(lineName)}`;
       } catch (err) {
         console.error("LIFF ERROR", err);
-          alert("LIFF ERROR: " + String(err));
 
         const saved = localStorage.getItem("user_name");
         if (saved) setName(saved);
@@ -44,7 +59,7 @@ export default function LoginPage() {
     };
 
     initLogin();
-  }, [router]);
+  }, []);
 
   const handleLogin = () => {
     if (!name.trim()) {
