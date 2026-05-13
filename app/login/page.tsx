@@ -34,6 +34,7 @@ export default function LoginPage() {
         return;
       } catch (err) {
         console.error("LIFF ERROR", err);
+          alert("LIFF ERROR: " + String(err));
 
         const saved = localStorage.getItem("user_name");
         if (saved) setName(saved);
