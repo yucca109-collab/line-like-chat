@@ -280,7 +280,7 @@ export default function OrdersPage() {
 
     const displayId = `#${nextNumber}`;
 
-    alert(`name=${name}\nlineUserId=${lineUserId}\nurl=${urlLineUserId}`);
+
 
     const { data, error } = await supabase
       .from("orders")
