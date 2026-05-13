@@ -4,8 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter, useSearchParams } from "next/navigation";
-
+import { useRouter } from "next/navigation";
 
 type OrderRow = {
   id: string;
@@ -45,8 +44,6 @@ type OrderWithMeta = OrderRow & {
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
 export default function OrdersPage() {
-
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   const [userName, setUserName] = useState("");
@@ -223,107 +220,97 @@ export default function OrdersPage() {
     setLoading(false);
   };
 
-  
-const createOrder = async () => {
-  setErr("");
+  const createOrder = async () => {
+    setErr("");
 
-  const urlLineUserId = searchParams.get("line_user_id");
-  const urlLineName = searchParams.get("line_name");
+    const params = new URLSearchParams(window.location.search);
+    const urlLineUserId = params.get("line_user_id");
+    const urlLineName = params.get("line_name");
 
-  if (urlLineUserId) {
-    localStorage.setItem("line_user_id", urlLineUserId);
-  }
-
-  if (urlLineName) {
-    localStorage.setItem("user_name", urlLineName);
-  }
-
-  const name =
-    localStorage.getItem("user_name") ||
-    urlLineName;
-
-  const lineUserId =
-    localStorage.getItem("line_user_id") ||
-    urlLineUserId;
-
-  if (!name) {
-    router.push("/login");
-    return;
-  }
-
-  const title = newTitle.trim();
-  const storeName = newStoreName.trim();
-  const contactName = newContactName.trim();
-
-  if (!title) {
-    setErr("依頼案件名を入力してください");
-    return;
-  }
-
-  setCreating(true);
-
-  const { data: latestOrder, error: latestError } = await supabase
-    .from("orders")
-    .select("display_id")
-    .not("display_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestError) {
-    setCreating(false);
-    setErr(`表示ID取得エラー: ${latestError.message}`);
-    return;
-  }
-
-  let nextNumber = 1001;
-
-  if (latestOrder?.display_id) {
-    const parsed = parseInt(
-      latestOrder.display_id.replace("#", ""),
-      10
-    );
-
-    if (!Number.isNaN(parsed)) {
-      nextNumber = parsed + 1;
+    if (urlLineUserId) {
+      localStorage.setItem("line_user_id", urlLineUserId);
     }
-  }
 
-  const displayId = `#${nextNumber}`;
+    if (urlLineName) {
+      localStorage.setItem("user_name", urlLineName);
+    }
 
-  alert(
-  `name=${name}\nlineUserId=${lineUserId}\nurl=${urlLineUserId}`
-);
-  
-  const { data, error } = await supabase
-    .from("orders")
-    .insert({
-      title,
-      status: "新規",
-      store_name: storeName || null,
-      contact_name: contactName || null,
-      designer_name: null,
-      created_by_name: name,
-      created_by_line_user_id: lineUserId || null,
-      line_user_id: lineUserId || null,
-      display_id: displayId,
-    })
-    .select("id")
-    .single();
+    const name = localStorage.getItem("user_name") || urlLineName;
+    const lineUserId = localStorage.getItem("line_user_id") || urlLineUserId;
 
-  setCreating(false);
+    if (!name) {
+      router.push("/login");
+      return;
+    }
 
-  if (error) {
-    setErr(error.message);
-    return;
-  }
+    const title = newTitle.trim();
+    const storeName = newStoreName.trim();
+    const contactName = newContactName.trim();
 
-  setNewTitle("");
-  setNewStoreName("");
-  setNewContactName("");
+    if (!title) {
+      setErr("依頼案件名を入力してください");
+      return;
+    }
 
-  router.push(`/orders/${data.id}`);
-};
+    setCreating(true);
+
+    const { data: latestOrder, error: latestError } = await supabase
+      .from("orders")
+      .select("display_id")
+      .not("display_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestError) {
+      setCreating(false);
+      setErr(`表示ID取得エラー: ${latestError.message}`);
+      return;
+    }
+
+    let nextNumber = 1001;
+
+    if (latestOrder?.display_id) {
+      const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
+
+      if (!Number.isNaN(parsed)) {
+        nextNumber = parsed + 1;
+      }
+    }
+
+    const displayId = `#${nextNumber}`;
+
+    alert(`name=${name}\nlineUserId=${lineUserId}\nurl=${urlLineUserId}`);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        title,
+        status: "新規",
+        store_name: storeName || null,
+        contact_name: contactName || null,
+        designer_name: null,
+        created_by_name: name,
+        created_by_line_user_id: lineUserId || null,
+        line_user_id: lineUserId || null,
+        display_id: displayId,
+      })
+      .select("id")
+      .single();
+
+    setCreating(false);
+
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    setNewTitle("");
+    setNewStoreName("");
+    setNewContactName("");
+
+    router.push(`/orders/${data.id}`);
+  };
 
   const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
     setErr("");
@@ -380,6 +367,7 @@ const createOrder = async () => {
 
   const logout = () => {
     localStorage.removeItem("user_name");
+    localStorage.removeItem("line_user_id");
     router.push("/login");
   };
 
@@ -485,13 +473,7 @@ const createOrder = async () => {
         boxSizing: "border-box",
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1180,
-          margin: "0 auto",
-        }}
-      >
+      <div style={{ width: "100%", maxWidth: 1180, margin: "0 auto" }}>
         <div
           style={{
             display: "flex",
@@ -502,13 +484,7 @@ const createOrder = async () => {
             marginBottom: 18,
           }}
         >
-          <div
-            style={{
-              fontSize: 15,
-              color: "#475569",
-              fontWeight: 600,
-            }}
-          >
+          <div style={{ fontSize: 15, color: "#475569", fontWeight: 600 }}>
             ログイン中：{userName}
           </div>
 
@@ -604,14 +580,7 @@ const createOrder = async () => {
             />
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              marginTop: 16,
-            }}
-          >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
             <button
               type="button"
               onClick={createOrder}
@@ -649,14 +618,7 @@ const createOrder = async () => {
           </div>
 
           {err && (
-            <p
-              style={{
-                marginTop: 14,
-                color: "#dc2626",
-                marginBottom: 0,
-                fontSize: 14,
-              }}
-            >
+            <p style={{ marginTop: 14, color: "#dc2626", marginBottom: 0, fontSize: 14 }}>
               エラー: {err}
             </p>
           )}
@@ -672,24 +634,11 @@ const createOrder = async () => {
             marginBottom: 12,
           }}
         >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "clamp(24px, 4vw, 32px)",
-              color: "#0f172a",
-            }}
-          >
+          <h2 style={{ margin: 0, fontSize: "clamp(24px, 4vw, 32px)", color: "#0f172a" }}>
             案件一覧
           </h2>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
@@ -764,14 +713,7 @@ const createOrder = async () => {
           </div>
         )}
 
-        <div
-          style={{
-            marginTop: 18,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 16 }}>
           {filteredOrders.map((o) => {
             const statusStyle = getStatusColor(o.display_status);
 
@@ -867,14 +809,10 @@ const createOrder = async () => {
 
                 <div className="orderBottomRow">
                   <div className="orderBottomLeft">
-                    <div className="orderIdText">
-                      オーダーID:{o.display_id || "未採番"}
-                    </div>
-
+                    <div className="orderIdText">オーダーID:{o.display_id || "未採番"}</div>
                     <div className="orderMetaText">
                       最新メッセージ：{formatDate(o.latest_message_at)}
                     </div>
-
                     <div className="orderMetaText">
                       作成者：{o.created_by_name || "不明"}
                     </div>
