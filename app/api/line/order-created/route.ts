@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   try {
     const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const designerLineUserId = process.env.DESIGNER_LINE_USER_ID;
 
     if (!token) {
       return NextResponse.json(
@@ -42,32 +43,39 @@ export async function POST(req: Request) {
       orderUrl || "",
     ].join("\n");
 
-    const res = await fetch("https://api.line.me/v2/bot/message/push", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        to: lineUserId,
-        messages: [
-          {
-            type: "text",
-            text: message,
-          },
-        ],
-      }),
-    });
+    const targets = [lineUserId, designerLineUserId].filter(
+      (target): target is string => Boolean(target)
+    );
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      return NextResponse.json(
-        { error: errorText },
-        { status: res.status }
-      );
+    for (const target of targets) {
+      const res = await fetch("https://api.line.me/v2/bot/message/push", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: target,
+          messages: [
+            {
+              type: "text",
+              text: message,
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+
+        return NextResponse.json(
+          { error: errorText },
+          { status: res.status }
+        );
+      }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, sentTo: targets.length });
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
