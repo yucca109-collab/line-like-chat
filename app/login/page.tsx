@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import liff from "@line/liff";
 
 const PASSCODE = "123456";
 
@@ -11,8 +12,38 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const saved = localStorage.getItem("user_name");
-    if (saved) setName(saved);
+    const initLiff = async () => {
+      try {
+        await liff.init({
+          liffId: "2010073232-54KHqDHX",
+        });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+
+        localStorage.setItem("line_user_id", profile.userId);
+
+        const saved = localStorage.getItem("user_name");
+        if (saved) {
+          setName(saved);
+        } else {
+          setName(profile.displayName);
+        }
+
+        console.log("LINE PROFILE", profile);
+      } catch (err) {
+        console.error("LIFF ERROR", err);
+
+        const saved = localStorage.getItem("user_name");
+        if (saved) setName(saved);
+      }
+    };
+
+    initLiff();
   }, []);
 
   const handleLogin = () => {
@@ -208,20 +239,20 @@ export default function LoginPage() {
           onClick={() => {
             window.open("https://1best.info/gen_v1/", "_blank");
           }}
-         style={{
+          style={{
             width: "80%",
-              height: 64,
-              margin: "0 auto", 
-              display: "block",
-              border: "none",
-              borderRadius: 999,
-              background: "linear-gradient(90deg, #ff007a, #ff4da6)",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
-              cursor: "pointer",
-            }}
+            height: 64,
+            margin: "0 auto",
+            display: "block",
+            border: "none",
+            borderRadius: 999,
+            background: "linear-gradient(90deg, #ff007a, #ff4da6)",
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 700,
+            boxShadow: "0 10px 30px rgba(255,0,122,0.25)",
+            cursor: "pointer",
+          }}
         >
           コピペ用ジェネレーターはこちら
         </button>
