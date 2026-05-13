@@ -20,18 +20,15 @@ export default function OrderCreateForm({ onCreated }: Props) {
     }
 
     const name = localStorage.getItem("user_name");
+    const lineUserId = localStorage.getItem("line_user_id");
 
     if (!name) {
       alert("ログインし直してください");
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("ログイン情報が取得できません");
+    if (!lineUserId) {
+      alert("LINEユーザーIDが取得できません");
       return;
     }
 
@@ -42,7 +39,7 @@ export default function OrderCreateForm({ onCreated }: Props) {
       store_name: store,
       contact_name: contact,
       created_by_name: name,
-      created_by: user.id,
+      created_by_line_user_id: lineUserId,
       status: "new",
     });
 
