@@ -74,20 +74,27 @@ export default function OrderCreateForm({ onCreated }: Props) {
       return;
     }
 
-    await fetch("/api/line/order-created", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    lineUserId,
-    displayId: data.display_id,
-    title,
-    storeName: store,
-    contactName: contact,
-    orderUrl: `https://app.1best.info/orders/${data.id}`,
-  }),
-});
+        const notifyRes = await fetch("/api/line/order-created", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lineUserId,
+        displayId: data.display_id,
+        title,
+        storeName: store,
+        contactName: contact,
+        orderUrl: `https://app.1best.info/orders/${data.id}`,
+      }),
+    });
+
+    const notifyText = await notifyRes.text();
+
+    alert(`通知結果: ${notifyRes.status}\n${notifyText}`);
+
+
+    
 
     
     setTitle("");
