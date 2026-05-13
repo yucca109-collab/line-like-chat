@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
@@ -8,6 +9,8 @@ type Props = {
 };
 
 export default function OrderCreateForm({ onCreated }: Props) {
+  const searchParams = useSearchParams();
+
   const [title, setTitle] = useState("");
   const [store, setStore] = useState("");
   const [contact, setContact] = useState("");
@@ -19,12 +22,25 @@ export default function OrderCreateForm({ onCreated }: Props) {
       return;
     }
 
-    const name = localStorage.getItem("user_name");
-    const lineUserId = localStorage.getItem("line_user_id");
+    const urlLineUserId = searchParams.get("line_user_id");
+    const urlLineName = searchParams.get("line_name");
 
-    alert(`LINE USER ID = ${lineUserId}`);
+    if (urlLineUserId) {
+      localStorage.setItem("line_user_id", urlLineUserId);
+    }
 
-    
+    if (urlLineName) {
+      localStorage.setItem("user_name", urlLineName);
+    }
+
+    const name =
+      localStorage.getItem("user_name") ||
+      urlLineName;
+
+    const lineUserId =
+      localStorage.getItem("line_user_id") ||
+      urlLineUserId;
+
     if (!name) {
       alert("ログインし直してください");
       return;
