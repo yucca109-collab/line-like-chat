@@ -1,105 +1,102 @@
 {
   "size": {
-	"width": 1500,
-	"height": 1010
+    "width": 1500,
+    "height": 1010
   },
   "selected": true,
   "name": "main-richmenu",
   "chatBarText": "メニュー",
   "areas": [
-	{
-	  "bounds": {
-		"x": 25,
-		"y": 75,
-		"width": 720,
-		"height": 700
-	  },
-	  "action": {
-		"type": "uri",
-		"label": "新規発注",
-		"uri": "https://app.1best.info/orders/"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 760,
-		"y": 45,
-		"width": 720,
-		"height": 230
-	  },
-	  "action": {
-		"type": "uri",
-		"label": "使い方マニュアル",
-		"uri": "https://1best.info/manual"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 770,
-		"y": 310,
-		"width": 705,
-		"height": 115
-	  },
-	  "action": {
-		"type": "message",
-		"label": "初回パスワード請求",
-		"text": "初回パスワード請求"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 765,
-		"y": 490,
-		"width": 345,
-		"height": 285
-	  },
-	  "action": {
-		"type": "uri",
-		"label": "発注一覧",
-		"uri": "https://app.1best.info/orders"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 1135,
-		"y": 490,
-		"width": 345,
-		"height": 285
-	  },
-	  "action": {
-		"type": "uri",
-		"label": "制作事例",
-		"uri": "https://1best.info/works"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 35,
-		"y": 865,
-		"width": 930,
-		"height": 110
-	  },
-	  "action": {
-		"type": "uri",
-		"label": "HTMLテンプレ",
-		"uri": "https://1best.info/gen_v1/"
-	  }
-	},
-	{
-	  "bounds": {
-		"x": 980,
-		"y": 865,
-		"width": 500,
-		"height": 110
-	  },
-	  "action": {
-		"type": "message",
-		"label": "問い合わせ",
-		"text": "お問い合わせ"
-	  }
-	}
+    {
+      "bounds": {
+        "x": 25,
+        "y": 75,
+        "width": 720,
+        "height": 700
+      },
+      "action": {
+        "type": "uri",
+        "label": "新規発注",
+        "uri": "https://liff.line.me/2010073232-54KHqDHX"
+      }
+    },
+    {
+      "bounds": {
+        "x": 760,
+        "y": 45,
+        "width": 720,
+        "height": 230
+      },
+      "action": {
+        "type": "uri",
+        "label": "使い方マニュアル",
+        "uri": "https://1best.info/manual"
+      }
+    },
+    {
+      "bounds": {
+        "x": 770,
+        "y": 310,
+        "width": 705,
+        "height": 115
+      },
+      "action": {
+        "type": "message",
+        "label": "初回パスワード請求",
+        "text": "初回パスワード請求"
+      }
+    },
+    {
+      "bounds": {
+        "x": 765,
+        "y": 490,
+        "width": 345,
+        "height": 285
+      },
+      "action": {
+        "type": "uri",
+        "label": "発注一覧",
+        "uri": "https://liff.line.me/2010073232-54KHqDHX"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1135,
+        "y": 490,
+        "width": 345,
+        "height": 285
+      },
+      "action": {
+        "type": "uri",
+        "label": "制作事例",
+        "uri": "https://1best.info/works"
+      }
+    },
+    {
+      "bounds": {
+        "x": 35,
+        "y": 865,
+        "width": 930,
+        "height": 110
+      },
+      "action": {
+        "type": "uri",
+        "label": "HTMLテンプレ",
+        "uri": "https://1best.info/gen_v1/"
+      }
+    },
+    {
+      "bounds": {
+        "x": 980,
+        "y": 865,
+        "width": 500,
+        "height": 110
+      },
+      "action": {
+        "type": "message",
+        "label": "問い合わせ",
+        "text": "お問い合わせ"
+      }
+    }
   ]
 }
-
-
-
