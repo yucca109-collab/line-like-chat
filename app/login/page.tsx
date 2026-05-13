@@ -5,46 +5,43 @@ import { useRouter } from "next/navigation";
 import liff from "@line/liff";
 
 const PASSCODE = "123456";
+const LIFF_ID = "2010073232-54KHqDHX";
 
 export default function LoginPage() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [checking, setChecking] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const initLiff = async () => {
+    const initLogin = async () => {
       try {
-        await liff.init({
-          liffId: "2010073232-54KHqDHX",
-        });
+        await liff.init({ liffId: LIFF_ID });
 
-        if (!liff.isLoggedIn()) {
-          liff.login();
+        if (liff.isInClient()) {
+          const profile = await liff.getProfile();
+
+          localStorage.setItem("line_user_id", profile.userId);
+          localStorage.setItem("user_name", profile.displayName);
+
+          router.replace("/orders");
           return;
         }
 
-        const profile = await liff.getProfile();
-
-        localStorage.setItem("line_user_id", profile.userId);
-
         const saved = localStorage.getItem("user_name");
-        if (saved) {
-          setName(saved);
-        } else {
-          setName(profile.displayName);
-        }
-
-        console.log("LINE PROFILE", profile);
+        if (saved) setName(saved);
       } catch (err) {
         console.error("LIFF ERROR", err);
 
         const saved = localStorage.getItem("user_name");
         if (saved) setName(saved);
+      } finally {
+        setChecking(false);
       }
     };
 
-    initLiff();
-  }, []);
+    initLogin();
+  }, [router]);
 
   const handleLogin = () => {
     if (!name.trim()) {
@@ -60,6 +57,23 @@ export default function LoginPage() {
     localStorage.setItem("user_name", name.trim());
     router.push("/orders");
   };
+
+  if (checking) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          fontSize: 18,
+          fontWeight: 700,
+          color: "#334155",
+        }}
+      >
+        ログイン確認中...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -228,12 +242,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 560,
-        }}
-      >
+      <div style={{ width: "100%", maxWidth: 560 }}>
         <button
           type="button"
           onClick={() => {
