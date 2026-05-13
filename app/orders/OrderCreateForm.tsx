@@ -26,6 +26,15 @@ export default function OrderCreateForm({ onCreated }: Props) {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("ログイン情報が取得できません");
+      return;
+    }
+
     setLoading(true);
 
     const { error } = await supabase.from("orders").insert({
@@ -33,6 +42,7 @@ export default function OrderCreateForm({ onCreated }: Props) {
       store_name: store,
       contact_name: contact,
       created_by_name: name,
+      created_by: user.id,
       status: "new",
     });
 
@@ -59,11 +69,13 @@ export default function OrderCreateForm({ onCreated }: Props) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="案件名"
         />
+
         <input
           value={store}
           onChange={(e) => setStore(e.target.value)}
           placeholder="店舗名"
         />
+
         <input
           value={contact}
           onChange={(e) => setContact(e.target.value)}
