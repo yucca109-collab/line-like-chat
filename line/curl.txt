@@ -1,0 +1,9 @@
+# リッチメニュー画像アップ
+curl -X POST https://api-data.line.me/v2/bot/richmenu/【ID】/content \
+-H "Authorization: Bearer 【CHANNEL_ACCESS_TOKEN】" \
+-H "Content-Type: image/png" \
+-T richmenu-main.png
+
+# デフォルト適用
+curl -X POST https://api.line.me/v2/bot/user/all/richmenu/【ID】 \
+-H "Authorization: Bearer 【CHANNEL_ACCESS_TOKEN】"
