@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
 
 type OrderRow = {
   id: string;
@@ -42,6 +43,8 @@ type OrderWithMeta = OrderRow & {
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
 export default function OrdersPage() {
+
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const [userName, setUserName] = useState("");
@@ -218,78 +221,107 @@ export default function OrdersPage() {
     setLoading(false);
   };
 
-  const createOrder = async () => {
-    setErr("");
+  
+const createOrder = async () => {
+  setErr("");
 
-    const name = localStorage.getItem("user_name");
-    if (!name) {
-      router.push("/login");
-      return;
-    }
+  const urlLineUserId = searchParams.get("line_user_id");
+  const urlLineName = searchParams.get("line_name");
 
-    const title = newTitle.trim();
-    const storeName = newStoreName.trim();
-    const contactName = newContactName.trim();
+  if (urlLineUserId) {
+    localStorage.setItem("line_user_id", urlLineUserId);
+  }
 
-    if (!title) {
-      setErr("依頼案件名を入力してください");
-      return;
-    }
+  if (urlLineName) {
+    localStorage.setItem("user_name", urlLineName);
+  }
 
-    setCreating(true);
+  const name =
+    localStorage.getItem("user_name") ||
+    urlLineName;
 
-    const { data: latestOrder, error: latestError } = await supabase
-      .from("orders")
-      .select("display_id")
-      .not("display_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const lineUserId =
+    localStorage.getItem("line_user_id") ||
+    urlLineUserId;
 
-    if (latestError) {
-      setCreating(false);
-      setErr(`表示ID取得エラー: ${latestError.message}`);
-      return;
-    }
+  if (!name) {
+    router.push("/login");
+    return;
+  }
 
-    let nextNumber = 1001;
+  const title = newTitle.trim();
+  const storeName = newStoreName.trim();
+  const contactName = newContactName.trim();
 
-    if (latestOrder?.display_id) {
-      const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
-      if (!Number.isNaN(parsed)) {
-        nextNumber = parsed + 1;
-      }
-    }
+  if (!title) {
+    setErr("依頼案件名を入力してください");
+    return;
+  }
 
-    const displayId = `#${nextNumber}`;
+  setCreating(true);
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
-        title,
-        status: "新規",
-        store_name: storeName || null,
-        contact_name: contactName || null,
-        designer_name: null,
-        created_by_name: name,
-        display_id: displayId,
-      })
-      .select("id")
-      .single();
+  const { data: latestOrder, error: latestError } = await supabase
+    .from("orders")
+    .select("display_id")
+    .not("display_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
+  if (latestError) {
     setCreating(false);
+    setErr(`表示ID取得エラー: ${latestError.message}`);
+    return;
+  }
 
-    if (error) {
-      setErr(error.message);
-      return;
+  let nextNumber = 1001;
+
+  if (latestOrder?.display_id) {
+    const parsed = parseInt(
+      latestOrder.display_id.replace("#", ""),
+      10
+    );
+
+    if (!Number.isNaN(parsed)) {
+      nextNumber = parsed + 1;
     }
+  }
 
-    setNewTitle("");
-    setNewStoreName("");
-    setNewContactName("");
+  const displayId = `#${nextNumber}`;
 
-    router.push(`/orders/${data.id}`);
-  };
+  alert(
+  `name=${name}\nlineUserId=${lineUserId}\nurl=${urlLineUserId}`
+);
+  
+  const { data, error } = await supabase
+    .from("orders")
+    .insert({
+      title,
+      status: "新規",
+      store_name: storeName || null,
+      contact_name: contactName || null,
+      designer_name: null,
+      created_by_name: name,
+      created_by_line_user_id: lineUserId || null,
+      line_user_id: lineUserId || null,
+      display_id: displayId,
+    })
+    .select("id")
+    .single();
+
+  setCreating(false);
+
+  if (error) {
+    setErr(error.message);
+    return;
+  }
+
+  setNewTitle("");
+  setNewStoreName("");
+  setNewContactName("");
+
+  router.push(`/orders/${data.id}`);
+};
 
   const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
     setErr("");
