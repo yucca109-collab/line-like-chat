@@ -74,6 +74,22 @@ export default function OrderCreateForm({ onCreated }: Props) {
       return;
     }
 
+    await fetch("/api/line/order-created", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    lineUserId,
+    displayId: data.display_id,
+    title,
+    storeName: store,
+    contactName: contact,
+    orderUrl: `https://app.1best.info/orders/${data.id}`,
+  }),
+});
+
+    
     setTitle("");
     setStore("");
     setContact("");
