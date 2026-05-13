@@ -371,16 +371,7 @@ export default function OrdersPage() {
     router.push("/login");
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("user_name");
 
-    if (!saved) {
-      router.push("/login");
-      return;
-    }
-
-    setUserName(saved);
-    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
