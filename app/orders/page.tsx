@@ -366,14 +366,38 @@ export default function OrdersPage() {
   };
 
   const logout = () => {
-    localStorage.removeItem("user_name");
-    localStorage.removeItem("line_user_id");
+  localStorage.removeItem("user_name");
+  localStorage.removeItem("line_user_id");
+  router.push("/login");
+};
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+
+  const urlLineUserId = params.get("line_user_id");
+  const urlLineName = params.get("line_name");
+
+  if (urlLineUserId) {
+    localStorage.setItem("line_user_id", urlLineUserId);
+  }
+
+  if (urlLineName) {
+    localStorage.setItem("user_name", urlLineName);
+  }
+
+  const saved = localStorage.getItem("user_name");
+
+  if (!saved) {
     router.push("/login");
-  };
+    return;
+  }
 
+  setUserName(saved);
+  load();
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+  
 
   useEffect(() => {
     const saved = localStorage.getItem("user_name");
