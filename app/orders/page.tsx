@@ -818,13 +818,13 @@ export default function OrdersPage() {
                           router.push(`/orders/${o.id}`);
                         }}
                         style={{
-                          height: 48,
+                          height: 60,
                           padding: "0 22px",
                           borderRadius: 999,
                           border: "none",
                           background: "#071426",
                           color: "#ffffff",
-                          fontSize: 14,
+                          fontSize: 20,
                           fontWeight: 900,
                           cursor: "pointer",
                           whiteSpace: "nowrap",
@@ -832,7 +832,7 @@ export default function OrdersPage() {
                           boxShadow: "0 10px 24px rgba(7,20,38,0.18)",
                         }}
                       >
-                        📁 案件を確認する
+                        案件を確認する
                       </button>
                         </div>
                       </div>
