@@ -109,6 +109,13 @@ export default function OrdersPage() {
     return new Date(value).toLocaleString("ja-JP");
   };
 
+  const getNextStatus = (current: DisplayStatus): DisplayStatus => {
+    if (current === "新規") return "進行中";
+    if (current === "進行中") return "納品済み";
+    if (current === "納品済み") return "アーカイブ";
+    return "進行中";
+  };
+
   const load = async () => {
     const name = localStorage.getItem("user_name");
     if (!name) {
@@ -272,15 +279,12 @@ export default function OrdersPage() {
 
     if (latestOrder?.display_id) {
       const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
-
       if (!Number.isNaN(parsed)) {
         nextNumber = parsed + 1;
       }
     }
 
     const displayId = `#${nextNumber}`;
-
-
 
     const { data, error } = await supabase
       .from("orders")
@@ -305,27 +309,21 @@ export default function OrdersPage() {
       return;
     }
 
+    await fetch("/api/line/order-created", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lineUserId,
+        displayId,
+        title,
+        storeName,
+        contactName,
+        orderUrl: `https://app.1best.info/orders/${data.id}`,
+      }),
+    });
 
-
-    const notifyRes = await fetch("/api/line/order-created", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    lineUserId,
-    displayId,
-    title,
-    storeName,
-    contactName,
-    orderUrl: `https://app.1best.info/orders/${data.id}`,
-  }),
-});
-
-
-
-
-    
     setNewTitle("");
     setNewStoreName("");
     setNewContactName("");
@@ -387,38 +385,37 @@ export default function OrdersPage() {
   };
 
   const logout = () => {
-  localStorage.removeItem("user_name");
-  localStorage.removeItem("line_user_id");
-  router.push("/login");
-};
-
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-
-  const urlLineUserId = params.get("line_user_id");
-  const urlLineName = params.get("line_name");
-
-  if (urlLineUserId) {
-    localStorage.setItem("line_user_id", urlLineUserId);
-  }
-
-  if (urlLineName) {
-    localStorage.setItem("user_name", urlLineName);
-  }
-
-  const saved = localStorage.getItem("user_name");
-
-  if (!saved) {
+    localStorage.removeItem("user_name");
+    localStorage.removeItem("line_user_id");
     router.push("/login");
-    return;
-  }
+  };
 
-  setUserName(saved);
-  load();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-  
+    const urlLineUserId = params.get("line_user_id");
+    const urlLineName = params.get("line_name");
+
+    if (urlLineUserId) {
+      localStorage.setItem("line_user_id", urlLineUserId);
+    }
+
+    if (urlLineName) {
+      localStorage.setItem("user_name", urlLineName);
+    }
+
+    const saved = localStorage.getItem("user_name");
+
+    if (!saved) {
+      router.push("/login");
+      return;
+    }
+
+    setUserName(saved);
+    load();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("user_name");
@@ -804,43 +801,10 @@ useEffect(() => {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="orderStatusWrap">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-
-                        const nextStatus: DisplayStatus =
-                          o.display_status === "新規"
-                            ? "進行中"
-                            : o.display_status === "進行中"
-                            ? "納品済み"
-                            : o.display_status === "納品済み"
-                            ? "アーカイブ"
-                            : "進行中";
-
-                        updateOrderStatus(o.id, nextStatus);
-                      }}
-                      style={{
-                        minWidth: 118,
-                        height: 48,
-                        border: "none",
-                        borderRadius: 999,
-                        padding: "0 18px",
-                        fontWeight: 900,
-                        fontSize: 14,
-                        cursor: "pointer",
-                        background: statusStyle.bg,
-                        color: statusStyle.text,
-                        whiteSpace: "nowrap",
-                        boxShadow: statusStyle.shadow,
-                      }}
-                      title="クリックで状態切り替え"
-                    >
-                      {o.display_status}
-                    </button>
-                  </div>
+                <div className="orderConfirmButton">
+                  📁 案件を確認する
                 </div>
 
                 <div className="orderBottomRow">
@@ -854,25 +818,8 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "#64748b",
-                        fontWeight: 800,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      担当デザイナー
-                    </div>
+                  <div className="designerControlArea">
+                    <div className="designerLabel">担当デザイナー</div>
 
                     <select
                       value={o.designer_name || ""}
@@ -881,20 +828,7 @@ useEffect(() => {
                         e.stopPropagation();
                         updateDesignerName(o.id, e.target.value);
                       }}
-                      style={{
-                        width: 220,
-                        maxWidth: "100%",
-                        height: 30,
-                        padding: "0 14px",
-                        borderRadius: 999,
-                        border: "1.5px solid #d1d5db",
-                        background: "#ffffff",
-                        color: "#0f172a",
-                        outline: "none",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        boxSizing: "border-box",
-                      }}
+                      className="designerSelect"
                     >
                       {DESIGNER_OPTIONS.map((name) => (
                         <option key={name || "empty"} value={name}>
@@ -902,6 +836,23 @@ useEffect(() => {
                         </option>
                       ))}
                     </select>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateOrderStatus(o.id, getNextStatus(o.display_status));
+                      }}
+                      className="statusMiniButton"
+                      style={{
+                        background: statusStyle.bg,
+                        color: statusStyle.text,
+                        boxShadow: statusStyle.shadow,
+                      }}
+                      title="クリックで状態切り替え"
+                    >
+                      {o.display_status}
+                    </button>
                   </div>
                 </div>
 
@@ -992,11 +943,8 @@ useEffect(() => {
           word-break: break-word;
         }
 
-        .orderStatusWrap {
-          display: flex;
-          justify-content: flex-end;
-          align-items: flex-start;
-          flex-shrink: 0;
+        .orderConfirmButton {
+          display: none;
         }
 
         .orderBottomRow {
@@ -1031,6 +979,54 @@ useEffect(() => {
           white-space: nowrap;
         }
 
+        .designerControlArea {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          padding: 6px;
+          border-radius: 999px;
+          background: rgba(248, 250, 252, 0.9);
+          border: 1px solid #e5e7eb;
+        }
+
+        .designerLabel {
+          font-size: 13px;
+          color: #64748b;
+          font-weight: 900;
+          white-space: nowrap;
+          padding-left: 4px;
+        }
+
+        .designerSelect {
+          width: 180px;
+          max-width: 100%;
+          height: 30px;
+          padding: 0 12px;
+          border-radius: 999px;
+          border: 1.5px solid #d1d5db;
+          background: #ffffff;
+          color: #0f172a;
+          outline: none;
+          font-size: 12px;
+          font-weight: 800;
+          box-sizing: border-box;
+          cursor: pointer;
+        }
+
+        .statusMiniButton {
+          height: 30px;
+          min-width: 76px;
+          border: none;
+          border-radius: 999px;
+          padding: 0 12px;
+          font-weight: 900;
+          font-size: 12px;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
         @media (max-width: 900px) {
           .orderCardTop {
             flex-direction: column;
@@ -1049,13 +1045,9 @@ useEffect(() => {
             border-top: 1px solid #cbd5e1;
           }
 
-          .orderStatusWrap {
-            justify-content: flex-start;
-          }
-
           .orderBottomRow {
             flex-direction: column;
-            align-items: flex-start;
+            align-items: stretch;
           }
 
           .orderBottomLeft {
@@ -1068,15 +1060,66 @@ useEffect(() => {
             white-space: normal;
             word-break: break-word;
           }
+
+          .designerControlArea {
+            justify-content: flex-start;
+            border-radius: 18px;
+            padding: 10px;
+          }
         }
 
         @media (max-width: 560px) {
+          :global(body) {
+            background: #eef2f7;
+          }
+
           .orderValue {
-            font-size: 14px;
+            font-size: 18px;
           }
 
           .orderIdText {
             font-size: 14px;
+          }
+
+          .orderConfirmButton {
+            display: block;
+            margin-top: 18px;
+            background: #071426;
+            color: #ffffff;
+            border-radius: 16px;
+            padding: 17px 14px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 900;
+            box-shadow: 0 10px 24px rgba(7, 20, 38, 0.18);
+          }
+
+          .designerControlArea {
+            margin-top: 4px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            background: #f8fafc;
+          }
+
+          .designerLabel {
+            grid-column: 1 / -1;
+            font-size: 12px;
+            color: #94a3b8;
+          }
+
+          .designerSelect {
+            width: 100%;
+            height: 34px;
+            font-size: 12px;
+          }
+
+          .statusMiniButton {
+            height: 34px;
+            min-width: 82px;
+            font-size: 12px;
           }
         }
       `}</style>
