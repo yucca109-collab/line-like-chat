@@ -1162,18 +1162,18 @@ export default function OrdersPage() {
           }
 
           .orderContactValue {
-          font-size: 16px;
-          font-weight: 800;
-          color: #111827;
-          line-height: 1.35;
-          word-break: break-word;
+            font-size: 16px;
+            font-weight: 800;
+            color: #111827;
+            line-height: 1.35;
+            word-break: break-word;
           }
-        
+          
           @media (max-width: 560px) {
-          .orderContactValue {
-            font-size: 15px;
+            .orderContactValue {
+              font-size: 15px;
+            }
           }
-        }
       `}</style>
     </div>
   );
