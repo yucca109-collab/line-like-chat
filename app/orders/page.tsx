@@ -86,6 +86,11 @@ export default function OrdersPage() {
     return "進行中";
   };
 
+  const formatDate = (value: string | null) => {
+    if (!value) return "まだありません";
+    return new Date(value).toLocaleString("ja-JP");
+  };
+
   const load = async () => {
     const name = localStorage.getItem("user_name");
     if (!name) {
@@ -120,17 +125,29 @@ export default function OrdersPage() {
 
     const orderIds = baseOrders.map((o) => o.id);
 
-    const { data: messageData } = await supabase
+    const { data: messageData, error: messageError } = await supabase
       .from("messages")
       .select("id,order_id,created_at,sender_name")
       .in("order_id", orderIds)
       .order("created_at", { ascending: false });
 
-    const { data: readData } = await supabase
+    if (messageError) {
+      setErr(messageError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: readData, error: readError } = await supabase
       .from("order_reads")
       .select("order_id,user_name,last_read_at")
       .eq("user_name", name)
       .in("order_id", orderIds);
+
+    if (readError) {
+      setErr(readError.message);
+      setLoading(false);
+      return;
+    }
 
     const messages = (messageData ?? []) as MessageRow[];
     const reads = (readData ?? []) as OrderReadRow[];
@@ -188,16 +205,24 @@ export default function OrdersPage() {
   const createOrder = async () => {
     setErr("");
 
-    const title = newTitle.trim();
-    const storeName = newStoreName.trim();
-    const contactName = newContactName.trim();
-    const name = localStorage.getItem("user_name");
-    const lineUserId = localStorage.getItem("line_user_id");
+    const params = new URLSearchParams(window.location.search);
+    const urlLineUserId = params.get("line_user_id");
+    const urlLineName = params.get("line_name");
+
+    if (urlLineUserId) localStorage.setItem("line_user_id", urlLineUserId);
+    if (urlLineName) localStorage.setItem("user_name", urlLineName);
+
+    const name = localStorage.getItem("user_name") || urlLineName;
+    const lineUserId = localStorage.getItem("line_user_id") || urlLineUserId;
 
     if (!name) {
       router.push("/login");
       return;
     }
+
+    const title = newTitle.trim();
+    const storeName = newStoreName.trim();
+    const contactName = newContactName.trim();
 
     if (!title) {
       setErr("依頼案件名を入力してください");
@@ -324,7 +349,6 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-
     const urlLineUserId = params.get("line_user_id");
     const urlLineName = params.get("line_name");
 
@@ -350,9 +374,15 @@ export default function OrdersPage() {
 
     const channel = supabase
       .channel("orders-list-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, load)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_reads" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        load();
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+        load();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_reads" }, () => {
+        load();
+      })
       .subscribe();
 
     return () => {
@@ -363,7 +393,10 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(load, 20000);
+    const interval = setInterval(() => {
+      load();
+    }, 20000);
+
     return () => clearInterval(interval);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -410,7 +443,7 @@ export default function OrdersPage() {
           <div className="loginText">ログイン中：{userName}</div>
 
           <button type="button" onClick={logout} className="logoutBtn">
-            ログアウト →
+            ログアウト
           </button>
         </header>
 
@@ -435,15 +468,15 @@ export default function OrdersPage() {
             />
 
             <button type="button" onClick={createOrder} disabled={creating} className="createBtn">
-              {creating ? "作成中..." : "案件作成 ＋"}
+              {creating ? "作成中..." : "案件作成"}
             </button>
 
             <button type="button" onClick={load} className="reloadBtn">
-              再読み込み ↻
+              再読み込み
             </button>
           </div>
 
-          {err && <p className="errorText">● エラー: {err}</p>}
+          {err && <p className="errorText">エラー: {err}</p>}
         </section>
 
         <section className="listHead">
@@ -453,24 +486,21 @@ export default function OrdersPage() {
             <input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="検索（ID・店舗名・担当者名・案件名・担当デザイナー）"
+              placeholder="検索（ID・店舗名・担当者・案件名・担当デザイナー）"
             />
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "すべて" | DisplayStatus)}
             >
-              <option value="すべて">すべてのステータス</option>
+              <option value="すべて">すべて</option>
               <option value="新規">新規</option>
               <option value="進行中">進行中</option>
               <option value="納品済み">納品済み</option>
               <option value="アーカイブ">アーカイブ</option>
             </select>
 
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
-            >
+            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
               <option value="新しい順">新しい順</option>
               <option value="古い順">古い順</option>
               <option value="店舗名順">店舗名順</option>
@@ -495,20 +525,21 @@ export default function OrdersPage() {
                 onClick={() => router.push(`/orders/${o.id}`)}
               >
                 <div className="infoArea">
-                  <div className="titleBlock">
+                  <div>
                     <div className="label">依頼案件名</div>
                     <div className="mainTitle">{o.title || "未入力"}</div>
                   </div>
 
-                  <div className="storeBlock">
+                  <div>
                     <div className="label">使用店舗名</div>
                     <div className="storeTitle">{o.store_name || "未入力"}</div>
                   </div>
 
                   <div className="metaLine">
                     <span>オーダーID:{o.display_id || "未採番"}</span>
-                    <span>作成者:{o.created_by_name || "不明"}</span>
                     <span>依頼者名:{o.contact_name || "未入力"}</span>
+                    <span>作成者:{o.created_by_name || "不明"}</span>
+                    <span>最新:{formatDate(o.latest_message_at)}</span>
                   </div>
                 </div>
 
@@ -581,10 +612,12 @@ export default function OrdersPage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          gap: 12px;
           margin-bottom: 14px;
         }
 
         .loginText {
+          font-size: 14px;
           font-weight: 700;
           color: #334155;
         }
@@ -594,8 +627,9 @@ export default function OrdersPage() {
           background: #fff;
           border: 1px solid #cbd5e1;
           color: #0f172a;
-          border-radius: 14px;
-          padding: 10px 18px;
+          border-radius: 12px;
+          padding: 10px 16px;
+          font-size: 13px;
           font-weight: 800;
           cursor: pointer;
         }
@@ -603,36 +637,37 @@ export default function OrdersPage() {
         .createBox {
           background: #fff;
           border: 1px solid #e5e7eb;
-          border-radius: 14px;
+          border-radius: 16px;
           padding: 20px;
-          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
-          margin-bottom: 26px;
+          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+          margin-bottom: 24px;
         }
 
         .createBox h2,
         .listHead h2 {
           margin: 0;
-          font-size: 24px;
+          font-size: 22px;
+          line-height: 1.3;
         }
 
         .createGrid {
           margin-top: 14px;
           display: grid;
-          grid-template-columns: 1.1fr 1fr 1fr 160px 150px;
-          gap: 12px;
+          grid-template-columns: 1.1fr 1fr 1fr 140px 130px;
+          gap: 10px;
           align-items: center;
         }
 
         input,
         select {
           width: 100%;
-          height: 42px;
+          height: 40px;
           border: 1px solid #cbd5e1;
           border-radius: 12px;
           background: #fff;
           color: #0f172a;
-          padding: 0 14px;
-          font-size: 14px;
+          padding: 0 12px;
+          font-size: 13px;
           box-sizing: border-box;
           outline: none;
         }
@@ -644,19 +679,21 @@ export default function OrdersPage() {
         }
 
         .createBtn {
-          height: 42px;
+          height: 40px;
           border: none;
           border-radius: 12px;
           background: #071426;
           color: #fff;
+          font-size: 13px;
           font-weight: 900;
           cursor: pointer;
         }
 
         .errorText {
           color: #ef4444;
+          font-size: 13px;
           font-weight: 700;
-          margin: 14px 0 0;
+          margin: 12px 0 0;
         }
 
         .listHead {
@@ -669,8 +706,8 @@ export default function OrdersPage() {
 
         .filters {
           display: grid;
-          grid-template-columns: minmax(280px, 420px) 180px 160px;
-          gap: 12px;
+          grid-template-columns: minmax(260px, 400px) 130px 130px;
+          gap: 10px;
         }
 
         .orderList {
@@ -682,14 +719,14 @@ export default function OrdersPage() {
         .orderCard {
           position: relative;
           display: grid;
-          grid-template-columns: 1fr 390px;
-          gap: 28px;
+          grid-template-columns: 1fr 340px;
+          gap: 22px;
           align-items: center;
           background: #fff;
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 22px 24px;
-          box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+          border-radius: 14px;
+          padding: 18px 20px;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
           cursor: pointer;
         }
 
@@ -700,23 +737,23 @@ export default function OrdersPage() {
         .infoArea {
           display: grid;
           grid-template-columns: 1.15fr 1fr;
-          column-gap: 40px;
-          row-gap: 22px;
+          column-gap: 30px;
+          row-gap: 14px;
           min-width: 0;
         }
 
         .label {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 900;
-          color: #111827;
-          margin-bottom: 8px;
+          color: #64748b;
+          margin-bottom: 5px;
         }
 
         .mainTitle,
         .storeTitle {
-          font-size: 28px;
-          font-weight: 900;
-          line-height: 1.15;
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.4;
           color: #241915;
           word-break: break-word;
         }
@@ -724,80 +761,83 @@ export default function OrdersPage() {
         .metaLine {
           grid-column: 1 / -1;
           display: flex;
-          gap: 22px;
+          gap: 16px;
           flex-wrap: wrap;
-          color: #374151;
-          font-size: 15px;
-          font-weight: 800;
+          color: #4b5563;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.5;
         }
 
         .actionArea {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 10px;
           min-width: 0;
         }
 
         .confirmBtn {
-          height: 58px;
+          height: 50px;
           border: none;
           border-radius: 12px;
           background: #1f130f;
           color: #fff;
-          font-size: 22px;
+          font-size: 17px;
           font-weight: 900;
           cursor: pointer;
-          box-shadow: 0 10px 24px rgba(31, 19, 15, 0.2);
+          box-shadow: 0 10px 24px rgba(31, 19, 15, 0.16);
         }
 
         .adminControls {
           display: grid;
-          grid-template-columns: auto 1fr 120px;
-          gap: 10px;
+          grid-template-columns: auto 1fr 82px;
+          gap: 7px;
           align-items: center;
-          border: 1.5px solid #a3a3a3;
+          border: 1px solid #d1d5db;
           border-radius: 999px;
-          padding: 8px 10px 8px 16px;
+          padding: 5px 7px 5px 10px;
           background: #fff;
         }
 
         .designerText {
-          color: #374151;
-          font-size: 13px;
-          font-weight: 900;
+          color: #6b7280;
+          font-size: 10px;
+          font-weight: 800;
           white-space: nowrap;
         }
 
         .designerSelect {
-          height: 32px;
+          height: 26px;
           border-radius: 999px;
-          font-weight: 800;
-          padding: 0 12px;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 0 8px;
+          border: 1px solid #d1d5db;
         }
 
         .statusBtn {
-          height: 32px;
+          height: 26px;
           border: none;
           border-radius: 999px;
-          font-size: 13px;
-          font-weight: 900;
+          font-size: 10px;
+          font-weight: 800;
           cursor: pointer;
         }
 
         .unreadBadge {
           position: absolute;
-          top: -12px;
-          right: -12px;
-          min-width: 48px;
-          height: 48px;
+          top: -10px;
+          right: -10px;
+          min-width: 36px;
+          height: 36px;
           padding: 0 8px;
           border-radius: 999px;
-          background: #f00;
+          background: #ff0000;
           color: #fff;
           display: flex;
           justify-content: center;
           align-items: center;
-          font-size: 24px;
+          font-size: 16px;
           font-weight: 900;
           box-sizing: border-box;
         }
@@ -806,16 +846,17 @@ export default function OrdersPage() {
         .loadingText {
           background: #fff;
           border-radius: 14px;
-          padding: 20px;
+          padding: 18px;
           color: #64748b;
+          font-size: 13px;
           font-weight: 700;
         }
 
         .footer {
           text-align: center;
-          margin-top: 22px;
-          color: #334155;
-          font-size: 13px;
+          margin-top: 20px;
+          color: #64748b;
+          font-size: 11px;
         }
 
         button:hover {
@@ -840,40 +881,79 @@ export default function OrdersPage() {
 
           .orderCard {
             grid-template-columns: 1fr;
-            gap: 16px;
+            gap: 12px;
           }
 
           .infoArea {
             grid-template-columns: 1fr 1fr;
-            column-gap: 18px;
-            row-gap: 14px;
+            column-gap: 16px;
+            row-gap: 12px;
           }
 
           .mainTitle,
           .storeTitle {
-            font-size: 19px;
+            font-size: 16px;
           }
 
           .confirmBtn {
             height: 44px;
-            font-size: 16px;
+            font-size: 15px;
           }
 
           .adminControls {
-            grid-template-columns: auto 1fr 90px;
+            grid-template-columns: auto 1fr 76px;
           }
         }
 
         @media (max-width: 560px) {
           .page {
-            padding: 12px;
-          }
-
-          .createBox {
-            display: none;
+            padding: 10px;
           }
 
           .topHeader {
+            margin-bottom: 10px;
+          }
+
+          .loginText {
+            font-size: 12px;
+          }
+
+          .logoutBtn {
+            padding: 8px 12px;
+            font-size: 11px;
+          }
+
+          .createBox {
+            display: block;
+            padding: 14px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+          }
+
+          .createBox h2 {
+            font-size: 18px;
+          }
+
+          .createGrid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-top: 10px;
+          }
+
+          input,
+          select {
+            height: 38px;
+            font-size: 12px;
+          }
+
+          .createBtn,
+          .reloadBtn {
+            width: 100%;
+            height: 38px;
+            font-size: 12px;
+          }
+
+          .errorText {
             font-size: 12px;
           }
 
@@ -886,6 +966,7 @@ export default function OrdersPage() {
           }
 
           .orderCard {
+            grid-template-columns: 1fr;
             padding: 14px;
             border-radius: 14px;
             gap: 10px;
@@ -893,8 +974,8 @@ export default function OrdersPage() {
 
           .infoArea {
             grid-template-columns: 1fr 1fr;
-            column-gap: 12px;
-            row-gap: 10px;
+            column-gap: 10px;
+            row-gap: 8px;
           }
 
           .label {
@@ -904,50 +985,60 @@ export default function OrdersPage() {
 
           .mainTitle,
           .storeTitle {
-            font-size: 16px;
+            font-size: 15px;
+            line-height: 1.35;
           }
 
           .metaLine {
-            gap: 8px;
+            gap: 6px;
             font-size: 10px;
+            line-height: 1.5;
           }
 
           .actionArea {
-            gap: 8px;
+            gap: 6px;
           }
 
           .confirmBtn {
-            height: 38px;
+            height: 40px;
             border-radius: 10px;
             font-size: 14px;
+            letter-spacing: 0.01em;
           }
 
           .adminControls {
-            grid-template-columns: auto 1fr 70px;
+            grid-template-columns: auto 1fr 64px;
             gap: 6px;
-            padding: 6px 8px;
+            padding: 5px 6px 5px 8px;
+            border-radius: 999px;
           }
 
           .designerText {
-            font-size: 10px;
+            font-size: 9px;
           }
 
-          .designerSelect,
+          .designerSelect {
+            height: 24px;
+            font-size: 9px;
+            padding: 0 8px;
+          }
+
           .statusBtn {
-            height: 28px;
-            font-size: 10px;
+            height: 24px;
+            font-size: 9px;
           }
 
           .unreadBadge {
-            top: -8px;
-            right: -8px;
-            min-width: 30px;
-            height: 30px;
-            font-size: 14px;
+            top: -6px;
+            right: -6px;
+            min-width: 26px;
+            height: 26px;
+            font-size: 12px;
           }
 
           .footer {
-            font-size: 11px;
+            font-size: 10px;
+            margin-top: 16px;
           }
         }
       `}</style>
