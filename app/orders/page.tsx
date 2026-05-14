@@ -795,47 +795,47 @@ export default function OrdersPage() {
                         <div className="orderValue">{o.store_name || "未入力"}</div>
                       </div>
 
-<div className="orderDividerBlock">
-  <div className="orderLabel">依頼者名</div>
+                        <div className="orderDividerBlock">
+                          <div className="orderLabel">依頼者名</div>
+                        
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 12,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div className="orderContactValue">
+                              {o.contact_name || "未入力"}
+                            </div>
 
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      gap: 12,
-      flexWrap: "wrap",
-    }}
-  >
-    <div className="orderContactValue">
-      {o.contact_name || "未入力"}
-    </div>
-
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        router.push(`/orders/${o.id}`);
-      }}
-      style={{
-        height: 42,
-        padding: "0 18px",
-        borderRadius: 999,
-        border: "1.5px solid #cbd5e1",
-        background: "#ffffff",
-        color: "#0f172a",
-        fontSize: 13,
-        fontWeight: 800,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-        boxShadow: "0 4px 12px rgba(15,23,42,0.06)",
-      }}
-    >
-      📁 案件確認
-    </button>
-  </div>
-</div>
+                          <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/orders/${o.id}`);
+                        }}
+                        style={{
+                          height: 48,
+                          padding: "0 22px",
+                          borderRadius: 999,
+                          border: "none",
+                          background: "#071426",
+                          color: "#ffffff",
+                          fontSize: 14,
+                          fontWeight: 900,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                          boxShadow: "0 10px 24px rgba(7,20,38,0.18)",
+                        }}
+                      >
+                        📁 案件を確認する
+                      </button>
+                        </div>
+                      </div>
 
 
                     </div>
