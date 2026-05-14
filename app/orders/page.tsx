@@ -591,7 +591,7 @@ export default function OrdersPage() {
           })}
         </section>
 
-        <footer className="footer">© 2024 Order Management System</footer>
+        <footer className="footer">© 2026 1best Order System</footer>
       </div>
 
       <style jsx>{`
