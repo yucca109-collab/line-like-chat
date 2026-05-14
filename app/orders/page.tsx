@@ -716,59 +716,60 @@ export default function OrdersPage() {
           gap: 12px;
         }
 
-        .orderCard {
-          position: relative;
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 22px;
-          align-items: center;
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 14px;
-          padding: 18px 20px;
-          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-          cursor: pointer;
-        }
+       .orderCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 32px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 24px 28px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+}
 
         .orderCard.isUnread {
           border-color: rgba(59, 130, 246, 0.45);
         }
-
+        
         .infoArea {
           display: grid;
-          grid-template-columns: 1.15fr 1fr;
-          column-gap: 30px;
-          row-gap: 14px;
+          grid-template-columns: 1.2fr 1fr;
+          column-gap: 42px;
+          row-gap: 18px;
           min-width: 0;
         }
-
+        
         .label {
           font-size: 11px;
           font-weight: 900;
           color: #64748b;
-          margin-bottom: 5px;
+          margin-bottom: 6px;
+          letter-spacing: 0.02em;
         }
-
+        
         .mainTitle,
         .storeTitle {
           font-size: 18px;
           font-weight: 800;
-          line-height: 1.4;
+          line-height: 1.45;
           color: #241915;
           word-break: break-word;
         }
-
+        
         .metaLine {
           grid-column: 1 / -1;
           display: flex;
-          gap: 16px;
+          gap: 20px;
           flex-wrap: wrap;
           color: #4b5563;
           font-size: 12px;
           font-weight: 700;
-          line-height: 1.5;
+          line-height: 1.7;
+          padding-top: 2px;
         }
-
         .actionArea {
           display: flex;
           flex-direction: column;
