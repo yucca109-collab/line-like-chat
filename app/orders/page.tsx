@@ -963,7 +963,16 @@ export default function OrdersPage() {
           }
 
           .filters {
-            display: none;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            width: 100%;
+          }
+          
+          .filters input,
+          .filters select {
+            height: 38px;
+            font-size: 12px;
           }
 
           .orderCard {
