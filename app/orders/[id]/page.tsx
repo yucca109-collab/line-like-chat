@@ -1153,15 +1153,16 @@ export default function OrderDetailPage() {
           outline: none;
           background: transparent;
           color: #475569;
-          font-size: 20px;
-          font-weight: 900;
+        
+          font-size: 15px; /* 20→15 */
+          font-weight: 700; /* 900→700 */
+        
           resize: none;
           line-height: 1.5;
           font-family: inherit;
           padding: 8px 8px;
           box-sizing: border-box;
         }
-
         .messageInput::placeholder {
           color: #7b8088;
         }
