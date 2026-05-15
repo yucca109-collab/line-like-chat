@@ -1364,7 +1364,7 @@ export default function OrderDetailPage() {
           transition: 0.2s ease;
         }
 
-        @media (max-width: 768px) {
+ @media (max-width: 768px) {
           .page {
             padding: 14px;
             background: #f3f6fa;
@@ -1467,11 +1467,11 @@ export default function OrderDetailPage() {
             width: auto;
             height: 40px;
             padding: 0 14px;
-            font-size: 13px;
+            font-size: 10px;
           }
 
           .messageInput {
-            font-size: 17px;
+            font-size: 15px;
             min-height: 42px;
             height: 42px;
             padding: 7px 4px;
