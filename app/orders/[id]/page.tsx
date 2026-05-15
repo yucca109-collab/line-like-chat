@@ -797,14 +797,7 @@ export default function OrderDetailPage() {
                 </button>
               </div>
 
-              {canUndo && (
-                <div className="undoArea">
-                  <span>送信しました</span>
-                  <button type="button" onClick={undoLastSend} disabled={undoing}>
-                    {undoing ? "取り消し中..." : "送信取り消し"}
-                  </button>
-                </div>
-              )}
+          
             </section>
 
             <section className="metaPanel">
