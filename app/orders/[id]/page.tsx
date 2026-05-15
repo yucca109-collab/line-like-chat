@@ -96,17 +96,22 @@ export default function OrderDetailPage() {
 
   const messagesBoxRef = useRef<HTMLDivElement | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [err, setErr] = useState("");
 
   const [userName, setUserName] = useState("");
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [otherTyping, setOtherTyping] = useState(false);
+
+  const [lastSentIds, setLastSentIds] = useState<string[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -130,6 +135,7 @@ export default function OrderDetailPage() {
       router.push("/login");
       return;
     }
+
     setUserName(name);
 
     const { data: orderData, error: orderErr } = await supabase
@@ -180,7 +186,6 @@ export default function OrderDetailPage() {
     const someoneTyping = ((data as TypingRow[] | null) ?? []).some((row) => {
       if (row.user_name === name) return false;
       if (!row.is_typing) return false;
-
       if (!row.updated_at) return true;
 
       const diff = now - new Date(row.updated_at).getTime();
@@ -232,34 +237,23 @@ export default function OrderDetailPage() {
       .eq("user_name", name)
       .maybeSingle();
 
-    if (selectError) {
-      console.error("既読確認エラー:", selectError.message);
-      return;
-    }
+    if (selectError) return;
 
     if (existing?.id) {
-      const { error: updateError } = await supabase
+      await supabase
         .from("order_reads")
         .update({
           last_read_at: now,
           updated_at: now,
         })
         .eq("id", existing.id);
-
-      if (updateError) {
-        console.error("既読更新エラー:", updateError.message);
-      }
     } else {
-      const { error: insertError } = await supabase.from("order_reads").insert({
+      await supabase.from("order_reads").insert({
         order_id: orderId,
         user_name: name,
         last_read_at: now,
         updated_at: now,
       });
-
-      if (insertError) {
-        console.error("既読作成エラー:", insertError.message);
-      }
     }
   };
 
@@ -267,6 +261,13 @@ export default function OrderDetailPage() {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
+    }
+  };
+
+  const clearUndoTimer = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
     }
   };
 
@@ -294,7 +295,9 @@ export default function OrderDetailPage() {
 
       for (const file of files) {
         if (file.size > 5 * 1024 * 1024) {
-          throw new Error(`「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`);
+          throw new Error(
+            `「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`
+          );
         }
 
         const fileExt = file.name.split(".").pop() || "jpg";
@@ -308,7 +311,9 @@ export default function OrderDetailPage() {
           .upload(filePath, file);
 
         if (uploadError) {
-          throw new Error("画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。");
+          throw new Error(
+            "画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。"
+          );
         }
 
         const { data } = supabase.storage
@@ -353,15 +358,26 @@ export default function OrderDetailPage() {
       }
 
       if (insertedRows) {
+        const rows = insertedRows as Message[];
+
         setMessages((prev) => {
           const next = [...prev];
-          for (const row of insertedRows as Message[]) {
+          for (const row of rows) {
             if (!next.some((m) => m.id === row.id)) {
               next.push(row);
             }
           }
           return next;
         });
+
+        setLastSentIds(rows.map((row) => row.id));
+        setCanUndo(true);
+        clearUndoTimer();
+
+        undoTimerRef.current = setTimeout(() => {
+          setCanUndo(false);
+          setLastSentIds([]);
+        }, 30000);
       }
 
       await markAsRead();
@@ -373,6 +389,33 @@ export default function OrderDetailPage() {
       setErr(e instanceof Error ? e.message : "送信に失敗しました");
     } finally {
       setSending(false);
+    }
+  };
+
+  const undoLastSend = async () => {
+    if (lastSentIds.length === 0) return;
+
+    setUndoing(true);
+    setErr("");
+
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .in("id", lastSentIds);
+
+      if (error) {
+        throw new Error("送信取り消しに失敗しました");
+      }
+
+      setMessages((prev) => prev.filter((m) => !lastSentIds.includes(m.id)));
+      setCanUndo(false);
+      setLastSentIds([]);
+      clearUndoTimer();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "送信取り消しに失敗しました");
+    } finally {
+      setUndoing(false);
     }
   };
 
@@ -401,28 +444,28 @@ export default function OrderDetailPage() {
           filter: `order_id=eq.${orderId}`,
         },
         (payload) => {
-          const row = payload.new as {
-            id: string;
-            order_id: string;
-            content: string | null;
-            image_url?: string | null;
-            sender_name: string;
-            created_at: string;
-          };
-
-          const newMessage: Message = {
-            id: row.id,
-            order_id: row.order_id,
-            content: row.content ?? null,
-            image_url: row.image_url ?? null,
-            sender_name: row.sender_name,
-            created_at: row.created_at,
-          };
+          const row = payload.new as Message;
 
           setMessages((prev) => {
-            if (prev.some((m) => m.id === newMessage.id)) return prev;
-            return [...prev, newMessage];
+            if (prev.some((m) => m.id === row.id)) return prev;
+            return [...prev, row];
           });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const oldRow = payload.old as { id?: string };
+
+          if (!oldRow.id) return;
+
+          setMessages((prev) => prev.filter((m) => m.id !== oldRow.id));
         }
       )
       .subscribe();
@@ -439,9 +482,7 @@ export default function OrderDetailPage() {
         },
         (payload) => {
           const row = payload.new as Order;
-          if (row) {
-            setOrder(row);
-          }
+          if (row) setOrder(row);
         }
       )
       .subscribe();
@@ -472,9 +513,7 @@ export default function OrderDetailPage() {
         }
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          syncTypingState();
-        }
+        if (status === "SUBSCRIBED") syncTypingState();
       });
 
     const interval = setInterval(() => {
@@ -485,15 +524,18 @@ export default function OrderDetailPage() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   useEffect(() => {
     return () => {
       clearTypingTimer();
+      clearUndoTimer();
     };
   }, []);
 
   const groupedMessages: MessageGroup[] = [];
+
   for (let i = 0; i < messages.length; i++) {
     const current = messages[i];
     const isImageOnly = !current.content && !!current.image_url;
@@ -545,248 +587,48 @@ export default function OrderDetailPage() {
 
   const currentStatus = getDisplayStatus(order?.status ?? "");
   const statusStyle = getStatusColor(currentStatus);
+  const hasSendContent = input.trim().length > 0 || files.length > 0;
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%)",
-        color: "#0f172a",
-        padding: 20,
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 980,
-          margin: "0 auto",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 14,
-          }}
-        >
+    <div className="page">
+      <div className="shell">
+        <div className="topBar">
           <button
             type="button"
             onClick={() => router.push("/orders")}
-            style={{
-              background: "#ffffff",
-              color: "#334155",
-              border: "1px solid #e5e7eb",
-              borderRadius: 999,
-              padding: "10px 16px",
-              cursor: "pointer",
-              fontWeight: 700,
-              boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
-            }}
+            className="backBtn"
           >
-            ← 一覧へ戻る
+            ← 一覧へ
           </button>
 
-          <div
-            style={{
-              fontSize: 13,
-              color: "#64748b",
-              fontWeight: 700,
-            }}
-          >
-            ログイン中：{userName || "読み込み中"}
-          </div>
+          <div className="loginName">ログイン中:{userName || "読み込み中"}</div>
         </div>
 
-        {loading && (
-          <p style={{ marginTop: 12, color: "#475569" }}>読み込み中...</p>
-        )}
+        {loading && <p className="loadingText">読み込み中...</p>}
 
         {order && (
           <>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 28,
-                padding: "16px 18px",
-                boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#64748b",
-                      marginBottom: 6,
-                      fontWeight: 700,
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    ORDER DETAIL
-                  </div>
-
-                  <h1
-                    style={{
-                      margin: 0,
-                      fontSize: "clamp(20px, 3vw, 26px)",
-                      lineHeight: 1.28,
-                      color: "#0f172a",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {order.title}
-                  </h1>
+            <section className="chatCard">
+              <div className="chatHeader">
+                <div className="titleBlock">
+                  <span className="titleLabel">案件名</span>
+                  <h1>{order.title}</h1>
                 </div>
 
-                <div
-                  style={{
-                    minWidth: 110,
-                    height: 40,
-                    borderRadius: 999,
-                    padding: "0 16px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: statusStyle.bg,
-                    color: statusStyle.text,
-                    fontWeight: 900,
-                    fontSize: 13,
-                    whiteSpace: "nowrap",
-                    boxShadow: statusStyle.shadow,
-                  }}
-                >
-                  {currentStatus}
+                <div className="creatorName">
+                  作成者:{order.created_by_name || "未入力"}
                 </div>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  marginTop: 10,
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
-                  店舗名：
-                  <span style={{ color: "#111827" }}>
-                    {order.store_name || "未入力"}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
-                  依頼者名：
-                  <span style={{ color: "#111827" }}>
-                    {order.contact_name || "未入力"}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
-                  作成者：
-                  <span style={{ color: "#111827" }}>
-                    {order.created_by_name || "未入力"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 28,
-                padding: 16,
-                boxShadow: "0 20px 60px rgba(15,23,42,0.08)",
-                marginBottom: 28,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  marginBottom: 10,
-                }}
-              >
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(20px, 3vw, 24px)",
-                    color: "#0f172a",
-                  }}
-                >
-                  チャット
-                </h2>
-
-                <button
-                  type="button"
-                  onClick={loadAll}
-                  style={{
-                    background: "#ffffff",
-                    color: "#334155",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 14,
-                    padding: "9px 12px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  再読み込み
-                </button>
-              </div>
-
-              <div
-                ref={messagesBoxRef}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 24,
-                  padding: 14,
-                  height: 540,
-                  overflowY: "auto",
-                  overflowX: "hidden",
-                  background: "linear-gradient(180deg, #4b5563 0%, #374151 100%)",
-                  boxSizing: "border-box",
-                  marginBottom: 14,
-                }}
-              >
+              <div ref={messagesBoxRef} className="messagesBox">
                 {messages.length === 0 ? (
-                  <div
-                    style={{
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "rgba(255,255,255,0.72)",
-                      fontWeight: 700,
-                    }}
-                  >
-                    まだメッセージがありません
+                  <div className="emptyMessage">
+                    制作内容・希望サイズ・参考イメージを
+                    <br />
+                    こちらのチャットへご入力ください
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 12,
-                    }}
-                  >
+                  <div className="messageList">
                     {groupedMessages.map((group, index) => {
                       if (group.type === "single") {
                         const m = group.message;
@@ -795,60 +637,22 @@ export default function OrderDetailPage() {
                         return (
                           <div
                             key={m.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: isMe ? "flex-end" : "flex-start",
-                            }}
+                            className={`messageRow ${isMe ? "me" : "other"}`}
                           >
-                            <div style={{ width: "100%", maxWidth: "min(78%, 520px)" }}>
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: "rgba(255,255,255,0.75)",
-                                  marginBottom: 6,
-                                  textAlign: isMe ? "right" : "left",
-                                  wordBreak: "break-word",
-                                  fontWeight: 700,
-                                }}
-                              >
+                            <div className="messageWrap">
+                              <div className="messageMeta">
                                 {m.sender_name} ・{" "}
                                 {new Date(m.created_at).toLocaleString("ja-JP")}
                               </div>
 
-                              <div
-                                style={{
-                                  padding: "12px 14px",
-                                  borderRadius: isMe
-                                    ? "20px 20px 6px 20px"
-                                    : "20px 20px 20px 6px",
-                                  lineHeight: 1.65,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                  overflowWrap: "anywhere",
-                                  background: isMe ? "#22c55e" : "#374151",
-                                  color: "#ffffff",
-                                  border: isMe
-                                    ? "1px solid rgba(34,197,94,0.2)"
-                                    : "1px solid rgba(255,255,255,0.08)",
-                                  boxShadow: "0 6px 16px rgba(0,0,0,0.22)",
-                                }}
-                              >
+                              <div className={`bubble ${isMe ? "me" : "other"}`}>
                                 {m.content && <div>{m.content}</div>}
 
                                 {m.image_url && (
                                   <img
                                     src={m.image_url}
                                     alt="送信画像"
-                                    style={{
-                                      width: "100%",
-                                      maxWidth: 280,
-                                      height: "auto",
-                                      borderRadius: 14,
-                                      marginTop: m.content ? 10 : 0,
-                                      display: "block",
-                                      objectFit: "cover",
-                                      background: "#111827",
-                                    }}
+                                    className="sentImage"
                                   />
                                 )}
                               </div>
@@ -860,62 +664,26 @@ export default function OrderDetailPage() {
                       return (
                         <div
                           key={`${group.sender_name}-${group.created_at}-${index}`}
-                          style={{
-                            display: "flex",
-                            justifyContent: group.isMe ? "flex-end" : "flex-start",
-                          }}
+                          className={`messageRow ${group.isMe ? "me" : "other"}`}
                         >
-                          <div style={{ width: "100%", maxWidth: "min(78%, 520px)" }}>
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: "rgba(255,255,255,0.75)",
-                                marginBottom: 6,
-                                textAlign: group.isMe ? "right" : "left",
-                                fontWeight: 700,
-                              }}
-                            >
+                          <div className="messageWrap">
+                            <div className="messageMeta">
                               {group.sender_name} ・{" "}
                               {new Date(group.created_at).toLocaleString("ja-JP")}
                             </div>
 
                             <div
-                              style={{
-                                padding: "12px 14px",
-                                borderRadius: group.isMe
-                                  ? "20px 20px 6px 20px"
-                                  : "20px 20px 20px 6px",
-                                background: group.isMe ? "#22c55e" : "#374151",
-                                color: "#ffffff",
-                                border: group.isMe
-                                  ? "1px solid rgba(34,197,94,0.2)"
-                                  : "1px solid rgba(255,255,255,0.08)",
-                                boxShadow: "0 6px 16px rgba(0,0,0,0.22)",
-                              }}
+                              className={`bubble imageBubble ${
+                                group.isMe ? "me" : "other"
+                              }`}
                             >
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns:
-                                    group.images.length === 1
-                                      ? "1fr"
-                                      : "repeat(2, minmax(0, 1fr))",
-                                  gap: 8,
-                                }}
-                              >
+                              <div className="imageGrid">
                                 {group.images.map((img) => (
                                   <img
                                     key={img.id}
                                     src={img.image_url || ""}
                                     alt="送信画像"
-                                    style={{
-                                      width: "100%",
-                                      aspectRatio: "1 / 1",
-                                      objectFit: "cover",
-                                      borderRadius: 12,
-                                      display: "block",
-                                      background: "#111827",
-                                    }}
+                                    className="groupImage"
                                   />
                                 ))}
                               </div>
@@ -928,333 +696,813 @@ export default function OrderDetailPage() {
                 )}
               </div>
 
-                            <div
-                style={{
-                  minHeight: 22,
-                  display: "flex",
-                  alignItems: "center",
-                  marginBottom: 10,
-                  color: "#64748b",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                {otherTyping ? "入力中..." : ""}
+              <div className="typingArea">{otherTyping ? "入力中..." : ""}</div>
+
+              {previewUrls.length > 0 && (
+                <div className="previewDock">
+                  {previewUrls.map((item, index) => (
+                    <div className="previewItem" key={`${item.file.name}-${index}`}>
+                      <img src={item.url} alt={`プレビュー ${index + 1}`} />
+                      <button
+                        type="button"
+                        onClick={() => removeSelectedFile(index)}
+                        className="previewRemove"
+                        aria-label="画像を削除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="inputBar">
+                <label htmlFor="image-upload" className="imageAddBtn">
+                  画像を追加
+                </label>
+
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []);
+                    if (selected.length === 0) return;
+
+                    setFiles((prev) => [...prev, ...selected]);
+                    e.currentTarget.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+
+                <textarea
+                  value={input}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setInput(value);
+
+                    if (!value.trim()) {
+                      updateTyping(false);
+                      clearTypingTimer();
+                      return;
+                    }
+
+                    updateTyping(true);
+                    clearTypingTimer();
+
+                    typingTimeoutRef.current = setTimeout(() => {
+                      updateTyping(false);
+                      typingTimeoutRef.current = null;
+                    }, 1500);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.ctrlKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  onInput={(e) => {
+                    const target = e.currentTarget;
+                    target.style.height = "46px";
+                    target.style.height = `${Math.min(
+                      target.scrollHeight,
+                      120
+                    )}px`;
+                  }}
+                  onBlur={() => {
+                    updateTyping(false);
+                    clearTypingTimer();
+                  }}
+                  placeholder={
+                    files.length > 0 ? "画像を送信できます" : "メッセージを入力..."
+                  }
+                  rows={1}
+                  className="messageInput"
+                />
+
+                <button
+                  type="button"
+                  onClick={sendMessage}
+                  disabled={sending || !hasSendContent}
+                  className="sendBtn"
+                  aria-label="送信"
+                >
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M3 20L21 12L3 4V10L15 12L3 14V20Z"
+                      fill="white"
+                    />
+                  </svg>
+                </button>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <label
-                    htmlFor="image-upload"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "10px 14px",
-                      borderRadius: 999,
-                      background: "#ffffff",
-                      border: "1px solid #e5e7eb",
-                      color: "#334155",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    画像を追加
-                  </label>
-
-                  <input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => {
-                      const selected = Array.from(e.target.files ?? []);
-                      if (selected.length === 0) return;
-
-                      setFiles((prev) => [...prev, ...selected]);
-                      e.currentTarget.value = "";
-                    }}
-                    style={{ display: "none" }}
-                  />
-
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {files.length > 0
-                      ? `${files.length}件の画像を選択中`
-                      : "画像はまだ選択されていません"}
-                  </div>
-                </div>
-
-                {previewUrls.length > 0 && (
-                  <div
-                    style={{
-                      padding: 12,
-                      borderRadius: 18,
-                      background: "#f8fafc",
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        marginBottom: 10,
-                        fontWeight: 600,
-                      }}
-                    >
-                      選択中の画像
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fill, minmax(120px, 1fr))",
-                        gap: 12,
-                      }}
-                    >
-                      {previewUrls.map((item, index) => (
-                        <div
-                          key={`${item.file.name}-${index}`}
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 16,
-                            padding: 8,
-                          }}
-                        >
-                          <img
-                            src={item.url}
-                            alt={`プレビュー ${index + 1}`}
-                            style={{
-                              width: "100%",
-                              aspectRatio: "1 / 1",
-                              objectFit: "cover",
-                              borderRadius: 12,
-                              display: "block",
-                            }}
-                          />
-
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: 11,
-                              color: "#64748b",
-                              wordBreak: "break-all",
-                              lineHeight: 1.45,
-                              minHeight: 32,
-                            }}
-                          >
-                            {item.file.name}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => removeSelectedFile(index)}
-                            style={{
-                              marginTop: 8,
-                              width: "100%",
-                              background: "#ffffff",
-                              color: "#334155",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: 999,
-                              padding: "8px 10px",
-                              cursor: "pointer",
-                              fontSize: 12,
-                              fontWeight: 700,
-                            }}
-                          >
-                            取り消す
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-end",
-                    flexWrap: "wrap",
-                    padding: 10,
-                    borderRadius: 22,
-                    background: "#f3f4f6",
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  
-<textarea
-  value={input}
-  onChange={(e) => {
-    const value = e.target.value;
-    setInput(value);
-
-    if (!value.trim()) {
-      updateTyping(false);
-      clearTypingTimer();
-      return;
-    }
-
-    updateTyping(true);
-    clearTypingTimer();
-
-    typingTimeoutRef.current = setTimeout(() => {
-      updateTyping(false);
-      typingTimeoutRef.current = null;
-    }, 1500);
-  }}
-  onKeyDown={(e) => {
-  if (e.key === "Enter" && e.ctrlKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-}}
-  onInput={(e) => {
-    const target = e.currentTarget;
-    target.style.height = "46px";
-    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-  }}
-  onBlur={() => {
-    updateTyping(false);
-    clearTypingTimer();
-  }}
-  placeholder="メッセージを入力"
-  rows={1}
-  style={{
-    flex: "1 1 280px",
-    minWidth: 0,
-    minHeight: 46,
-    height: "46px",
-    maxHeight: 120,
-    padding: "12px 16px",
-    borderRadius: 20,
-    border: "1px solid #dbe2ea",
-    background: "#ffffff",
-    color: "#334155",
-    outline: "none",
-    boxSizing: "border-box",
-    fontSize: 15,
-    resize: "none",
-    lineHeight: 1.5,
-    overflowY: "auto",
-    fontFamily: "inherit",
-    display: "block",
-  }}
-/>
-
-                  <button
-                    type="button"
-                    onClick={sendMessage}
-                    disabled={sending}
-                    style={{
-                      width: 46,
-                      height: 46,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: sending ? "#9ca3af" : "#06c755",
-                      border: "none",
-                      borderRadius: "50%",
-                      cursor: sending ? "default" : "pointer",
-                      boxShadow: "0 8px 20px rgba(6,199,85,0.25)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M3 20L21 12L3 4V10L15 12L3 14V20Z"
-                        fill="white"
-                      />
-                    </svg>
+              {canUndo && (
+                <div className="undoArea">
+                  <span>送信しました</span>
+                  <button type="button" onClick={undoLastSend} disabled={undoing}>
+                    {undoing ? "取り消し中..." : "送信取り消し"}
                   </button>
                 </div>
+              )}
+            </section>
 
-                <div
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 16,
-                    padding: "12px 14px",
-                    color: "#334155",
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 900,
-                      color: "#0f172a",
-                      marginBottom: 4,
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    オーダーID：{order.display_id || "未採番"}
-                  </div>
+            <section className="metaPanel">
+              <div className="storeLine">
+                <span>使用店舗名</span>
+                <strong>{order.store_name || "店舗名未入力"}</strong>
+              </div>
 
-                  <div>
-                    このチャットを呼び出すには、
-                    #から始まるオーダーIDを公式LINEで入力してください。
-                    <br />
-                    例：{order.display_id || "#1000"}
-                  </div>
+              <div className="metaControls">
+                <div className="metaField designerField">
+                  <span>担当デザイナー</span>
+                  <select defaultValue="">
+                    <option value="">未設定</option>
+                    <option value="designer1">デザイナー1</option>
+                    <option value="designer2">デザイナー2</option>
+                  </select>
                 </div>
 
-                {err && (
-                  <div
-                    style={{
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#dc2626",
-                      borderRadius: 14,
-                      padding: "12px 14px",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {err}
-                  </div>
-                )}
+                <div className="statusPill" style={{ background: statusStyle.bg }}>
+                  {currentStatus}
+                </div>
+
+                <div className="metaField">
+                  <span>最終納品日</span>
+                  <input type="date" />
+                </div>
+
+                <div className="metaField">
+                  <span>納品数</span>
+                  <input type="number" min="0" placeholder="0" />
+                </div>
               </div>
-            </div>
+
+              <div className="futureGrid">
+                <button type="button">画像を追加</button>
+
+                <div className="futureBox largeBox">
+                  <span>ポートフォリオ書き出し予定エリア</span>
+                </div>
+
+                <div className="futureBox smallBox">
+                  <span>納品メモ / 連携ログ予定エリア</span>
+                </div>
+              </div>
+
+              <div className="orderHint">
+                <strong>オーダーID：{order.display_id || "未採番"}</strong>
+                <br />
+                公式LINEでこの案件を呼び出す場合は、
+                #から始まるオーダーIDを入力してください。
+              </div>
+            </section>
+
+            {err && <div className="errorBox">{err}</div>}
           </>
         )}
       </div>
 
       <style jsx>{`
-        input:focus,
-        textarea:focus {
-          border-color: #94a3b8 !important;
-          background: #ffffff !important;
-          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
+        .page {
+          min-height: 100vh;
+          background: #f3f6fa;
+          color: #111827;
+          padding: 46px 20px 60px;
+          box-sizing: border-box;
         }
 
-        button:hover {
+        .shell {
+          width: 100%;
+          max-width: 1120px;
+          margin: 0 auto;
+        }
+
+        .topBar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 10px;
+        }
+
+        .backBtn {
+          background: #ffffff;
+          color: #263241;
+          border: 1px solid rgba(17, 24, 39, 0.35);
+          border-radius: 999px;
+          padding: 10px 20px;
+          cursor: pointer;
+          font-weight: 900;
+          font-size: 15px;
+        }
+
+        .loginName {
+          font-size: 15px;
+          font-weight: 900;
+          color: #263241;
+        }
+
+        .loadingText {
+          color: #475569;
+          font-weight: 700;
+        }
+
+        .chatCard {
+          background: #465361;
+          border-radius: 24px;
+          overflow: hidden;
+          min-height: 640px;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+        }
+
+        .chatHeader {
+          height: 72px;
+          background: #1e2c3d;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 34px;
+          box-sizing: border-box;
+          gap: 20px;
+        }
+
+        .titleBlock {
+          min-width: 0;
+          display: flex;
+          align-items: baseline;
+          gap: 22px;
+        }
+
+        .titleLabel {
+          flex-shrink: 0;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .titleBlock h1 {
+          margin: 0;
+          font-size: clamp(25px, 4vw, 36px);
+          line-height: 1.1;
+          font-weight: 950;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .creatorName {
+          flex-shrink: 0;
+          font-weight: 900;
+          font-size: 18px;
+        }
+
+        .messagesBox {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 26px 28px;
+          box-sizing: border-box;
+          position: relative;
+        }
+
+        .emptyMessage {
+          min-height: 400px;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 22px;
+          font-weight: 900;
+          line-height: 1.75;
+        }
+
+        .messageList {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .messageRow {
+          display: flex;
+        }
+
+        .messageRow.me {
+          justify-content: flex-end;
+        }
+
+        .messageRow.other {
+          justify-content: flex-start;
+        }
+
+        .messageWrap {
+          width: 100%;
+          max-width: min(78%, 560px);
+        }
+
+        .messageMeta {
+          color: rgba(255, 255, 255, 0.76);
+          font-size: 11px;
+          margin-bottom: 6px;
+          font-weight: 700;
+          word-break: break-word;
+        }
+
+        .messageRow.me .messageMeta {
+          text-align: right;
+        }
+
+        .bubble {
+          padding: 12px 14px;
+          line-height: 1.65;
+          white-space: pre-wrap;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          color: #ffffff;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .bubble.me {
+          background: #06c755;
+          border-radius: 20px 20px 6px 20px;
+        }
+
+        .bubble.other {
+          background: #374151;
+          border-radius: 20px 20px 20px 6px;
+        }
+
+        .sentImage {
+          width: 100%;
+          max-width: 280px;
+          height: auto;
+          border-radius: 14px;
+          margin-top: 10px;
+          display: block;
+          object-fit: cover;
+          background: #111827;
+        }
+
+        .sentImage:first-child {
+          margin-top: 0;
+        }
+
+        .imageGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .groupImage {
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          object-fit: cover;
+          border-radius: 12px;
+          display: block;
+          background: #111827;
+        }
+
+        .typingArea {
+          min-height: 20px;
+          padding: 0 32px;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 13px;
+          font-weight: 800;
+          box-sizing: border-box;
+        }
+
+        .previewDock {
+          display: flex;
+          gap: 10px;
+          padding: 8px 30px 0;
+          overflow-x: auto;
+          box-sizing: border-box;
+        }
+
+        .previewItem {
+          width: 86px;
+          height: 86px;
+          flex: 0 0 auto;
+          position: relative;
+          border-radius: 18px;
+          overflow: hidden;
+          background: #111827;
+          border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .previewItem img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .previewRemove {
+          position: absolute;
+          right: 6px;
+          top: 6px;
+          width: 24px;
+          height: 24px;
+          border-radius: 999px;
+          border: none;
+          background: rgba(15, 23, 42, 0.82);
+          color: #ffffff;
+          font-size: 18px;
+          line-height: 1;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .inputBar {
+          margin: 14px 30px 28px;
+          min-height: 66px;
+          border-radius: 999px;
+          background: #f8fafc;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 14px;
+          box-sizing: border-box;
+          box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+        }
+
+        .imageAddBtn {
+          height: 44px;
+          padding: 0 24px;
+          border-radius: 999px;
+          background: #858e98;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 900;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .messageInput {
+          flex: 1;
+          min-width: 0;
+          min-height: 46px;
+          height: 46px;
+          max-height: 120px;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: #475569;
+          font-size: 20px;
+          font-weight: 900;
+          resize: none;
+          line-height: 1.5;
+          font-family: inherit;
+          padding: 8px 8px;
+          box-sizing: border-box;
+        }
+
+        .messageInput::placeholder {
+          color: #7b8088;
+        }
+
+        .sendBtn {
+          width: 50px;
+          height: 50px;
+          border-radius: 999px;
+          border: none;
+          background: #06c755;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+          box-shadow: 0 10px 24px rgba(6, 199, 85, 0.28);
+        }
+
+        .sendBtn:disabled {
+          background: #94a3b8;
+          cursor: default;
+          box-shadow: none;
+          opacity: 0.7;
+        }
+
+        .undoArea {
+          margin: -14px 36px 20px;
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 10px;
+          color: rgba(255, 255, 255, 0.84);
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .undoArea button {
+          border: none;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.18);
+          color: #ffffff;
+          padding: 7px 12px;
+          cursor: pointer;
+          font-weight: 900;
+        }
+
+        .metaPanel {
+          width: 82%;
+          margin: 70px auto 0;
+        }
+
+        .storeLine {
+          display: flex;
+          align-items: baseline;
+          gap: 18px;
+          margin-bottom: 18px;
+          color: #111827;
+        }
+
+        .storeLine span {
+          font-size: 15px;
+          font-weight: 900;
+        }
+
+        .storeLine strong {
+          font-size: 28px;
+          line-height: 1.2;
+        }
+
+        .metaControls {
+          min-height: 46px;
+          border-radius: 999px;
+          border: 1px solid rgba(17, 24, 39, 0.36);
+          display: grid;
+          grid-template-columns: 280px 160px 1fr 1fr;
+          align-items: center;
+          overflow: hidden;
+          background: rgba(255, 255, 255, 0.55);
+          margin-bottom: 34px;
+        }
+
+        .metaField {
+          height: 100%;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 18px;
+          border-left: 1px solid rgba(17, 24, 39, 0.24);
+          box-sizing: border-box;
+        }
+
+        .designerField {
+          border-left: none;
+        }
+
+        .metaField span {
+          font-size: 14px;
+          font-weight: 900;
+          white-space: nowrap;
+          color: #374151;
+        }
+
+        .metaField select,
+        .metaField input {
+          min-width: 0;
+          width: 100%;
+          height: 30px;
+          border-radius: 10px;
+          border: 1px solid rgba(17, 24, 39, 0.25);
+          background: #ffffff;
+          padding: 0 10px;
+          font-weight: 800;
+          color: #374151;
+          box-sizing: border-box;
+        }
+
+        .statusPill {
+          height: 30px;
+          border-radius: 999px;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          font-weight: 950;
+          margin: 0 16px;
+          box-shadow: ${statusStyle.shadow};
+        }
+
+        .futureGrid {
+          display: grid;
+          grid-template-columns: 160px 1fr;
+          gap: 26px 24px;
+          align-items: start;
+        }
+
+        .futureGrid > button {
+          height: 40px;
+          border: none;
+          border-radius: 999px;
+          background: #858e98;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .futureBox {
+          background: #858e98;
+          border-radius: 18px;
+          color: rgba(255, 255, 255, 0.55);
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 18px;
+          box-sizing: border-box;
+        }
+
+        .largeBox {
+          min-height: 128px;
+        }
+
+        .smallBox {
+          min-height: 128px;
+          grid-column: 2;
+          width: 72%;
+        }
+
+        .orderHint {
+          margin-top: 28px;
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 14px 16px;
+          color: #334155;
+          font-size: 13px;
+          line-height: 1.7;
+        }
+
+        .errorBox {
+          margin: 18px auto 0;
+          max-width: 900px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+          border-radius: 14px;
+          padding: 12px 14px;
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.6;
+        }
+
+        button:hover,
+        .imageAddBtn:hover {
           opacity: 0.96;
           transform: translateY(-1px);
           transition: 0.2s ease;
+        }
+
+        @media (max-width: 768px) {
+          .page {
+            padding: 14px;
+            background: #f3f6fa;
+            height: 100dvh;
+            overflow: hidden;
+          }
+
+          .shell {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+          }
+
+          .topBar {
+            margin-bottom: 8px;
+            flex-shrink: 0;
+          }
+
+          .backBtn {
+            padding: 8px 14px;
+            font-size: 14px;
+            background: #ffffff;
+          }
+
+          .loginName {
+            display: none;
+          }
+
+          .chatCard {
+            flex: 1;
+            min-height: 0;
+            border-radius: 22px;
+          }
+
+          .chatHeader {
+            height: 62px;
+            padding: 0 18px;
+          }
+
+          .titleBlock {
+            gap: 12px;
+          }
+
+          .titleLabel {
+            font-size: 11px;
+          }
+
+          .titleBlock h1 {
+            font-size: 24px;
+          }
+
+          .creatorName {
+            display: none;
+          }
+
+          .messagesBox {
+            padding: 18px 14px;
+          }
+
+          .emptyMessage {
+            min-height: 0;
+            font-size: 17px;
+            line-height: 1.75;
+          }
+
+          .messageWrap {
+            max-width: 86%;
+          }
+
+          .messageMeta {
+            font-size: 10px;
+          }
+
+          .bubble {
+            font-size: 14px;
+          }
+
+          .typingArea {
+            padding: 0 16px;
+          }
+
+          .previewDock {
+            padding: 8px 16px 0;
+          }
+
+          .previewItem {
+            width: 74px;
+            height: 74px;
+            border-radius: 16px;
+          }
+
+          .inputBar {
+            margin: 10px 12px 16px;
+            min-height: 62px;
+            padding: 8px;
+            gap: 8px;
+          }
+
+          .imageAddBtn {
+            width: auto;
+            height: 40px;
+            padding: 0 14px;
+            font-size: 13px;
+          }
+
+          .messageInput {
+            font-size: 17px;
+            min-height: 42px;
+            height: 42px;
+            padding: 7px 4px;
+          }
+
+          .sendBtn {
+            width: 48px;
+            height: 48px;
+          }
+
+          .undoArea {
+            margin: -8px 18px 12px;
+          }
+
+          .metaPanel {
+            display: none;
+          }
+
+          .errorBox {
+            position: fixed;
+            left: 14px;
+            right: 14px;
+            bottom: 12px;
+            z-index: 20;
+          }
         }
       `}</style>
     </div>
