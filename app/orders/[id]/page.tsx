@@ -905,7 +905,7 @@ export default function OrderDetailPage() {
           background: #465361;
           border-radius: 24px;
           overflow: hidden;
-          height: 640px;
+          height: 800px;
           display: flex;
           flex-direction: column;
           box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
