@@ -1471,7 +1471,7 @@ export default function OrderDetailPage() {
           }
 
           .messageInput {
-            font-size: 15px;
+            font-size: 13px;
             min-height: 42px;
             height: 42px;
             padding: 7px 4px;
