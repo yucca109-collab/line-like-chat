@@ -1,3 +1,6 @@
+これで app/orders/[id]/page.tsx 丸ごと差し替えでOK。
+既存コードに、designer_name / final_delivery_date / delivery_count を接続済み。
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +16,10 @@ type Order = {
   created_by_name: string | null;
   created_at: string;
   display_id: string | null;
+
+  designer_name: string | null;
+  final_delivery_date: string | null;
+  delivery_count: number | null;
 };
 
 type Message = {
@@ -126,6 +133,25 @@ export default function OrderDetailPage() {
     };
   }, [previewUrls]);
 
+  const updateOrderField = async (
+    field: "designer_name" | "final_delivery_date" | "delivery_count",
+    value: string | number | null
+  ) => {
+    if (!order) return;
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ [field]: value })
+      .eq("id", order.id);
+
+    if (error) {
+      setErr("案件情報の更新に失敗しました");
+      return;
+    }
+
+    setOrder((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
   const loadAll = async () => {
     setErr("");
     setLoading(true);
@@ -141,7 +167,7 @@ export default function OrderDetailPage() {
     const { data: orderData, error: orderErr } = await supabase
       .from("orders")
       .select(
-        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id"
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count"
       )
       .eq("id", orderId)
       .single();
@@ -796,8 +822,6 @@ export default function OrderDetailPage() {
                   </svg>
                 </button>
               </div>
-
-          
             </section>
 
             <section className="metaPanel">
@@ -809,10 +833,16 @@ export default function OrderDetailPage() {
               <div className="metaControls">
                 <div className="metaField designerField">
                   <span>担当デザイナー</span>
-                  <select defaultValue="">
+                  <select
+                    value={order.designer_name || ""}
+                    onChange={(e) =>
+                      updateOrderField("designer_name", e.target.value || null)
+                    }
+                  >
                     <option value="">未設定</option>
-                    <option value="designer1">デザイナー1</option>
-                    <option value="designer2">デザイナー2</option>
+                    <option value="ハマダユカ">ハマダユカ</option>
+                    <option value="デザイナー1">デザイナー1</option>
+                    <option value="デザイナー2">デザイナー2</option>
                   </select>
                 </div>
 
@@ -822,12 +852,31 @@ export default function OrderDetailPage() {
 
                 <div className="metaField">
                   <span>最終納品日</span>
-                  <input type="date" />
+                  <input
+                    type="date"
+                    value={order.final_delivery_date || ""}
+                    onChange={(e) =>
+                      updateOrderField(
+                        "final_delivery_date",
+                        e.target.value || null
+                      )
+                    }
+                  />
                 </div>
 
                 <div className="metaField">
                   <span>納品数</span>
-                  <input type="number" min="0" placeholder="0" />
+                  <input
+                    type="number"
+                    min="0"
+                    value={order.delivery_count ?? 0}
+                    onChange={(e) =>
+                      updateOrderField(
+                        "delivery_count",
+                        Number(e.target.value || 0)
+                      )
+                    }
+                  />
                 </div>
               </div>
 
