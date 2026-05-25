@@ -1,6 +1,3 @@
-これで app/orders/[id]/page.tsx 丸ごと差し替えでOK。
-既存コードに、designer_name / final_delivery_date / delivery_count を接続済み。
-
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,7 +13,6 @@ type Order = {
   created_by_name: string | null;
   created_at: string;
   display_id: string | null;
-
   designer_name: string | null;
   final_delivery_date: string | null;
   delivery_count: number | null;
@@ -52,6 +48,8 @@ type MessageGroup =
 
 type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
 
+const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
+
 const getDisplayStatus = (status: string): DisplayStatus => {
   if (
     status === "新規" ||
@@ -61,6 +59,14 @@ const getDisplayStatus = (status: string): DisplayStatus => {
   ) {
     return status;
   }
+
+  return "進行中";
+};
+
+const getNextStatus = (current: DisplayStatus): DisplayStatus => {
+  if (current === "新規") return "進行中";
+  if (current === "進行中") return "納品済み";
+  if (current === "納品済み") return "アーカイブ";
   return "進行中";
 };
 
@@ -110,7 +116,9 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [undoing, setUndoing] = useState(false);
+  const [savingDelivery, setSavingDelivery] = useState(false);
   const [err, setErr] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [userName, setUserName] = useState("");
   const [input, setInput] = useState("");
@@ -119,6 +127,9 @@ export default function OrderDetailPage() {
 
   const [lastSentIds, setLastSentIds] = useState<string[]>([]);
   const [canUndo, setCanUndo] = useState(false);
+
+  const [draftDeliveryDate, setDraftDeliveryDate] = useState("");
+  const [draftDeliveryCount, setDraftDeliveryCount] = useState(0);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -133,35 +144,9 @@ export default function OrderDetailPage() {
     };
   }, [previewUrls]);
 
-const updateOrderField = async (
-  field: "designer_name" | "final_delivery_date" | "delivery_count",
-  value: string | number | null
-) => {
-  if (!order) return;
-
-  console.log("更新する値:", field, value);
-
-  const { data, error } = await supabase
-    .from("orders")
-    .update({ [field]: value })
-    .eq("id", order.id)
-    .select();
-
-  if (error) {
-    console.error("更新エラー:", error);
-    alert(`更新エラー: ${error.message}`);
-    setErr(`案件情報の更新に失敗しました: ${error.message}`);
-    return;
-  }
-
-  console.log("更新成功:", data);
-
-  setOrder((prev) =>
-    prev ? { ...prev, [field]: value } : prev
-  );
-};
-
-    setOrder((prev) => (prev ? { ...prev, [field]: value } : prev));
+  const syncDeliveryDraft = (targetOrder: Order) => {
+    setDraftDeliveryDate(targetOrder.final_delivery_date || "");
+    setDraftDeliveryCount(targetOrder.delivery_count ?? 0);
   };
 
   const loadAll = async () => {
@@ -169,6 +154,7 @@ const updateOrderField = async (
     setLoading(true);
 
     const name = localStorage.getItem("user_name");
+
     if (!name) {
       router.push("/login");
       return;
@@ -190,7 +176,10 @@ const updateOrderField = async (
       return;
     }
 
-    setOrder(orderData as Order);
+    const loadedOrder = orderData as Order;
+
+    setOrder(loadedOrder);
+    syncDeliveryDraft(loadedOrder);
 
     const { data: msgData, error: msgErr } = await supabase
       .from("messages")
@@ -206,6 +195,82 @@ const updateOrderField = async (
 
     setLoading(false);
     await markAsRead();
+  };
+
+  const updateDesignerName = async (nextDesignerName: string) => {
+    if (!order) return;
+
+    setErr("");
+    setSaveMessage("");
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ designer_name: nextDesignerName || null })
+      .eq("id", order.id);
+
+    if (error) {
+      setErr(`担当デザイナー更新エラー: ${error.message}`);
+      return;
+    }
+
+    setOrder((prev) =>
+      prev ? { ...prev, designer_name: nextDesignerName || null } : prev
+    );
+  };
+
+  const updateOrderStatus = async () => {
+    if (!order) return;
+
+    setErr("");
+    setSaveMessage("");
+
+    const currentStatus = getDisplayStatus(order.status);
+    const nextStatus = getNextStatus(currentStatus);
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: nextStatus })
+      .eq("id", order.id);
+
+    if (error) {
+      setErr(`ステータス更新エラー: ${error.message}`);
+      return;
+    }
+
+    setOrder((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+  };
+
+  const saveDeliveryInfo = async () => {
+    if (!order) return;
+
+    setErr("");
+    setSaveMessage("");
+    setSavingDelivery(true);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .update({
+        final_delivery_date: draftDeliveryDate || null,
+        delivery_count: draftDeliveryCount,
+      })
+      .eq("id", order.id)
+      .select(
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count"
+      )
+      .single();
+
+    setSavingDelivery(false);
+
+    if (error) {
+      setErr(`納品情報の保存に失敗しました: ${error.message}`);
+      return;
+    }
+
+    const updatedOrder = data as Order;
+
+    setOrder(updatedOrder);
+    syncDeliveryDraft(updatedOrder);
+    setSaveMessage("保存しました");
   };
 
   const syncTypingState = async () => {
@@ -400,11 +465,13 @@ const updateOrderField = async (
 
         setMessages((prev) => {
           const next = [...prev];
+
           for (const row of rows) {
             if (!next.some((m) => m.id === row.id)) {
               next.push(row);
             }
           }
+
           return next;
         });
 
@@ -500,9 +567,7 @@ const updateOrderField = async (
         },
         (payload) => {
           const oldRow = payload.old as { id?: string };
-
           if (!oldRow.id) return;
-
           setMessages((prev) => prev.filter((m) => m.id !== oldRow.id));
         }
       )
@@ -520,7 +585,10 @@ const updateOrderField = async (
         },
         (payload) => {
           const row = payload.new as Order;
-          if (row) setOrder(row);
+          if (!row) return;
+
+          setOrder(row);
+          syncDeliveryDraft(row);
         }
       )
       .subscribe();
@@ -619,6 +687,7 @@ const updateOrderField = async (
         isMe: current.sender_name === userName,
         images: group,
       });
+
       i = j - 1;
     }
   }
@@ -741,6 +810,7 @@ const updateOrderField = async (
                   {previewUrls.map((item, index) => (
                     <div className="previewItem" key={`${item.file.name}-${index}`}>
                       <img src={item.url} alt={`プレビュー ${index + 1}`} />
+
                       <button
                         type="button"
                         onClick={() => removeSelectedFile(index)}
@@ -845,52 +915,71 @@ const updateOrderField = async (
               <div className="metaControls">
                 <div className="metaField designerField">
                   <span>担当デザイナー</span>
+
                   <select
                     value={order.designer_name || ""}
-                    onChange={(e) =>
-                      updateOrderField("designer_name", e.target.value || null)
-                    }
+                    onChange={(e) => updateDesignerName(e.target.value)}
                   >
-                    <option value="">未設定</option>
-                    <option value="ハマダユカ">ハマダユカ</option>
-                    <option value="デザイナー1">デザイナー1</option>
-                    <option value="デザイナー2">デザイナー2</option>
+                    {DESIGNER_OPTIONS.map((name) => (
+                      <option key={name || "empty"} value={name}>
+                        {name || "未設定"}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                <div className="statusPill" style={{ background: statusStyle.bg }}>
+                <button
+                  type="button"
+                  className="statusPill"
+                  style={{
+                    background: statusStyle.bg,
+                    color: statusStyle.text,
+                    boxShadow: statusStyle.shadow,
+                  }}
+                  onClick={updateOrderStatus}
+                  title="クリックでステータス変更"
+                >
                   {currentStatus}
-                </div>
+                </button>
 
                 <div className="metaField">
                   <span>最終納品日</span>
+
                   <input
                     type="date"
-                    value={order.final_delivery_date || ""}
-                    onChange={(e) =>
-                      updateOrderField(
-                        "final_delivery_date",
-                        e.target.value || null
-                      )
-                    }
+                    value={draftDeliveryDate}
+                    onChange={(e) => {
+                      setDraftDeliveryDate(e.target.value);
+                      setSaveMessage("");
+                    }}
                   />
                 </div>
 
                 <div className="metaField">
                   <span>納品数</span>
+
                   <input
                     type="number"
                     min="0"
-                    value={order.delivery_count ?? 0}
-                    onChange={(e) =>
-                      updateOrderField(
-                        "delivery_count",
-                        Number(e.target.value || 0)
-                      )
-                    }
+                    value={draftDeliveryCount}
+                    onChange={(e) => {
+                      setDraftDeliveryCount(Number(e.target.value || 0));
+                      setSaveMessage("");
+                    }}
                   />
                 </div>
+
+                <button
+                  type="button"
+                  className="saveMetaBtn"
+                  onClick={saveDeliveryInfo}
+                  disabled={savingDelivery}
+                >
+                  {savingDelivery ? "保存中" : "保存"}
+                </button>
               </div>
+
+              {saveMessage && <div className="saveMessage">{saveMessage}</div>}
 
               <div className="futureGrid">
                 <button type="button">画像を追加</button>
@@ -1214,16 +1303,15 @@ const updateOrderField = async (
           outline: none;
           background: transparent;
           color: #475569;
-        
-          font-size: 15px; /* 20→15 */
-          font-weight: 700; /* 900→700 */
-        
+          font-size: 15px;
+          font-weight: 700;
           resize: none;
           line-height: 1.5;
           font-family: inherit;
           padding: 8px 8px;
           box-sizing: border-box;
         }
+
         .messageInput::placeholder {
           color: #7b8088;
         }
@@ -1247,27 +1335,6 @@ const updateOrderField = async (
           cursor: default;
           box-shadow: none;
           opacity: 0.7;
-        }
-
-        .undoArea {
-          margin: -14px 36px 20px;
-          display: flex;
-          justify-content: flex-end;
-          align-items: center;
-          gap: 10px;
-          color: rgba(255, 255, 255, 0.84);
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .undoArea button {
-          border: none;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.18);
-          color: #ffffff;
-          padding: 7px 12px;
-          cursor: pointer;
-          font-weight: 900;
         }
 
         .metaPanel {
@@ -1298,11 +1365,11 @@ const updateOrderField = async (
           border-radius: 999px;
           border: 1px solid rgba(17, 24, 39, 0.36);
           display: grid;
-          grid-template-columns: 280px 160px 1fr 1fr;
+          grid-template-columns: 250px 130px 1fr 1fr 76px;
           align-items: center;
           overflow: hidden;
           background: rgba(255, 255, 255, 0.55);
-          margin-bottom: 34px;
+          margin-bottom: 12px;
         }
 
         .metaField {
@@ -1310,7 +1377,7 @@ const updateOrderField = async (
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 0 18px;
+          padding: 0 14px;
           border-left: 1px solid rgba(17, 24, 39, 0.24);
           box-sizing: border-box;
         }
@@ -1343,14 +1410,38 @@ const updateOrderField = async (
         .statusPill {
           height: 30px;
           border-radius: 999px;
-          color: #ffffff;
+          border: none;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 14px;
           font-weight: 950;
-          margin: 0 16px;
-          box-shadow: ${statusStyle.shadow};
+          margin: 0 12px;
+          cursor: pointer;
+        }
+
+        .saveMetaBtn {
+          height: 30px;
+          margin-right: 12px;
+          border: none;
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .saveMetaBtn:disabled {
+          background: #94a3b8;
+          cursor: default;
+        }
+
+        .saveMessage {
+          color: #16a34a;
+          font-size: 12px;
+          font-weight: 900;
+          margin: 0 0 18px 10px;
         }
 
         .futureGrid {
@@ -1358,6 +1449,7 @@ const updateOrderField = async (
           grid-template-columns: 160px 1fr;
           gap: 26px 24px;
           align-items: start;
+          margin-top: 22px;
         }
 
         .futureGrid > button {
@@ -1425,7 +1517,7 @@ const updateOrderField = async (
           transition: 0.2s ease;
         }
 
- @media (max-width: 768px) {
+        @media (max-width: 768px) {
           .page {
             padding: 14px;
             background: #f3f6fa;
@@ -1541,10 +1633,6 @@ const updateOrderField = async (
           .sendBtn {
             width: 48px;
             height: 48px;
-          }
-
-          .undoArea {
-            margin: -8px 18px 12px;
           }
 
           .metaPanel {
