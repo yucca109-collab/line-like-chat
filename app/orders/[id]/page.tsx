@@ -133,21 +133,33 @@ export default function OrderDetailPage() {
     };
   }, [previewUrls]);
 
-  const updateOrderField = async (
-    field: "designer_name" | "final_delivery_date" | "delivery_count",
-    value: string | number | null
-  ) => {
-    if (!order) return;
+const updateOrderField = async (
+  field: "designer_name" | "final_delivery_date" | "delivery_count",
+  value: string | number | null
+) => {
+  if (!order) return;
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ [field]: value })
-      .eq("id", order.id);
+  console.log("更新する値:", field, value);
 
-    if (error) {
-      setErr("案件情報の更新に失敗しました");
-      return;
-    }
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ [field]: value })
+    .eq("id", order.id)
+    .select();
+
+  if (error) {
+    console.error("更新エラー:", error);
+    alert(`更新エラー: ${error.message}`);
+    setErr(`案件情報の更新に失敗しました: ${error.message}`);
+    return;
+  }
+
+  console.log("更新成功:", data);
+
+  setOrder((prev) =>
+    prev ? { ...prev, [field]: value } : prev
+  );
+};
 
     setOrder((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
