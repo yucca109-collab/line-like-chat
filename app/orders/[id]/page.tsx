@@ -64,15 +64,16 @@ type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ"
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
 const TAG_OPTIONS = [
-  "WEBサイト",
-  "LP",
+  "スマホスライド",
+  "PCスライド",
+  "フリーバナー",
   "バナー",
-  "ロゴ",
-  "名刺",
-  "SNS画像",
-  "求人",
-  "チラシ",
-  "メニュー",
+  "ランキングロゴ",
+  "グラビア",
+  "その他",
+  "ガールズヘブン",
+  "GIF画像",
+  "動画",
 ];
 
 const getDisplayStatus = (status: string): DisplayStatus => {
