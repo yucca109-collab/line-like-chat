@@ -146,6 +146,7 @@ export default function OrderDetailPage() {
   const [undoing, setUndoing] = useState(false);
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [savingDeliverable, setSavingDeliverable] = useState(false);
+  const [deletingDeliverableId, setDeletingDeliverableId] = useState<string | null>(null);
 
   const [err, setErr] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -395,6 +396,42 @@ export default function OrderDetailPage() {
       setErr(e instanceof Error ? e.message : "納品物の保存に失敗しました");
     } finally {
       setSavingDeliverable(false);
+    }
+  };
+
+  const deleteDeliverable = async (item: Deliverable) => {
+    const ok = confirm("この納品物を削除しますか？\nWEBサイトに掲載中の場合も一覧から消えます。");
+    if (!ok) return;
+
+    setErr("");
+    setSaveMessage("");
+    setDeletingDeliverableId(item.id);
+
+    try {
+      const { error } = await supabase
+        .from("order_deliverables")
+        .delete()
+        .eq("id", item.id);
+
+      if (error) {
+        throw new Error(`削除に失敗しました: ${error.message}`);
+      }
+
+      const marker = "/storage/v1/object/public/deliverables/";
+      const filePath = item.file_url.includes(marker)
+        ? item.file_url.split(marker)[1]
+        : "";
+
+      if (filePath) {
+        await supabase.storage.from("deliverables").remove([filePath]);
+      }
+
+      setDeliverables((prev) => prev.filter((row) => row.id !== item.id));
+      setSaveMessage("納品物を削除しました");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "削除に失敗しました");
+    } finally {
+      setDeletingDeliverableId(null);
     }
   };
 
@@ -1261,6 +1298,15 @@ export default function OrderDetailPage() {
                             >
                               開く
                             </a>
+
+                            <button
+                              type="button"
+                              className="deleteDeliverableBtn"
+                              onClick={() => deleteDeliverable(item)}
+                              disabled={deletingDeliverableId === item.id}
+                            >
+                              {deletingDeliverableId === item.id ? "削除中" : "削除"}
+                            </button>
                           </div>
                         </article>
                       ))}
@@ -2012,6 +2058,22 @@ export default function OrderDetailPage() {
           padding: 8px 12px;
         }
 
+        .deleteDeliverableBtn {
+          border: none;
+          border-radius: 999px;
+          background: #ef4444;
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 950;
+          padding: 8px 12px;
+          cursor: pointer;
+        }
+
+        .deleteDeliverableBtn:disabled {
+          background: #fca5a5;
+          cursor: default;
+        }
+
         .orderHint {
           margin-top: 28px;
           background: #ffffff;
@@ -2234,6 +2296,7 @@ export default function OrderDetailPage() {
 
           .deliverableActions {
             margin-top: 12px;
+            flex-wrap: wrap;
           }
 
           .errorBox {
