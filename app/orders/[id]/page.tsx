@@ -27,6 +27,19 @@ type Message = {
   created_at: string;
 };
 
+type Deliverable = {
+  id: string;
+  order_id: string;
+  file_url: string;
+  file_name: string | null;
+  file_type: string | null;
+  tags: string[] | null;
+  public_title: string | null;
+  public_comment: string | null;
+  is_public: boolean | null;
+  created_at: string;
+};
+
 type TypingRow = {
   user_name: string;
   is_typing: boolean;
@@ -49,6 +62,18 @@ type MessageGroup =
 type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
 
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
+
+const TAG_OPTIONS = [
+  "WEBサイト",
+  "LP",
+  "バナー",
+  "ロゴ",
+  "名刺",
+  "SNS画像",
+  "求人",
+  "チラシ",
+  "メニュー",
+];
 
 const getDisplayStatus = (status: string): DisplayStatus => {
   if (
@@ -113,10 +138,14 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [savingDelivery, setSavingDelivery] = useState(false);
+  const [savingDeliverable, setSavingDeliverable] = useState(false);
+
   const [err, setErr] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
@@ -130,6 +159,12 @@ export default function OrderDetailPage() {
 
   const [draftDeliveryDate, setDraftDeliveryDate] = useState("");
   const [draftDeliveryCount, setDraftDeliveryCount] = useState(0);
+
+  const [deliverableFile, setDeliverableFile] = useState<File | null>(null);
+  const [deliverableTags, setDeliverableTags] = useState<string[]>([]);
+  const [publicTitle, setPublicTitle] = useState("");
+  const [publicComment, setPublicComment] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -147,6 +182,20 @@ export default function OrderDetailPage() {
   const syncDeliveryDraft = (targetOrder: Order) => {
     setDraftDeliveryDate(targetOrder.final_delivery_date || "");
     setDraftDeliveryCount(targetOrder.delivery_count ?? 0);
+  };
+
+  const loadDeliverables = async () => {
+    const { data, error } = await supabase
+      .from("order_deliverables")
+      .select(
+        "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+      )
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false });
+
+    if (!error) {
+      setDeliverables((data ?? []) as Deliverable[]);
+    }
   };
 
   const loadAll = async () => {
@@ -192,6 +241,8 @@ export default function OrderDetailPage() {
     } else {
       setMessages((msgData ?? []) as Message[]);
     }
+
+    await loadDeliverables();
 
     setLoading(false);
     await markAsRead();
@@ -271,6 +322,79 @@ export default function OrderDetailPage() {
     setOrder(updatedOrder);
     syncDeliveryDraft(updatedOrder);
     setSaveMessage("保存しました");
+  };
+
+  const toggleDeliverableTag = (tag: string) => {
+    setDeliverableTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+    );
+  };
+
+  const saveDeliverable = async () => {
+    if (!order) return;
+
+    if (!deliverableFile) {
+      setErr("納品物ファイルを選択してください");
+      return;
+    }
+
+    setErr("");
+    setSaveMessage("");
+    setSavingDeliverable(true);
+
+    try {
+      const fileExt = deliverableFile.name.split(".").pop() || "file";
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${fileExt}`;
+
+      const filePath = `${order.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("deliverables")
+        .upload(filePath, deliverableFile);
+
+      if (uploadError) {
+        throw new Error(`納品物アップロード失敗: ${uploadError.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("deliverables")
+        .getPublicUrl(filePath);
+
+      const { data, error } = await supabase
+        .from("order_deliverables")
+        .insert({
+          order_id: order.id,
+          file_url: publicUrlData.publicUrl,
+          file_name: deliverableFile.name,
+          file_type: deliverableFile.type || null,
+          tags: deliverableTags,
+          public_title: publicTitle || null,
+          public_comment: publicComment || null,
+          is_public: isPublic,
+        })
+        .select(
+          "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+        )
+        .single();
+
+      if (error) {
+        throw new Error(`納品物登録失敗: ${error.message}`);
+      }
+
+      setDeliverables((prev) => [data as Deliverable, ...prev]);
+      setDeliverableFile(null);
+      setDeliverableTags([]);
+      setPublicTitle("");
+      setPublicComment("");
+      setIsPublic(false);
+      setSaveMessage("納品物を保存しました");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "納品物の保存に失敗しました");
+    } finally {
+      setSavingDeliverable(false);
+    }
   };
 
   const syncTypingState = async () => {
@@ -593,10 +717,28 @@ export default function OrderDetailPage() {
       )
       .subscribe();
 
+    const deliverableChannel = supabase
+      .channel(`deliverables-realtime-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "order_deliverables",
+          filter: `order_id=eq.${orderId}`,
+        },
+        () => {
+          loadDeliverables();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(orderChannel);
+      supabase.removeChannel(deliverableChannel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   useEffect(() => {
@@ -981,15 +1123,148 @@ export default function OrderDetailPage() {
 
               {saveMessage && <div className="saveMessage">{saveMessage}</div>}
 
-              <div className="futureGrid">
-                <button type="button">画像を追加</button>
-
-                <div className="futureBox largeBox">
-                  <span>ポートフォリオ書き出し予定エリア</span>
+              <div className="deliverableArea">
+                <div className="deliverableHead">
+                  <div>
+                    <p>FINAL DELIVERABLE</p>
+                    <h2>最終納品物</h2>
+                  </div>
+                  <span>WEBサイトの制作実績へ反映する納品データ</span>
                 </div>
 
-                <div className="futureBox smallBox">
-                  <span>納品メモ / 連携ログ予定エリア</span>
+                <div className="deliverableGrid">
+                  <div className="deliverableForm">
+                    <label htmlFor="deliverable-upload" className="deliverableUpload">
+                      <input
+                        id="deliverable-upload"
+                        type="file"
+                        onChange={(e) => {
+                          setDeliverableFile(e.target.files?.[0] || null);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                      <strong>納品物をUP</strong>
+                      <span>
+                        {deliverableFile
+                          ? deliverableFile.name
+                          : "画像 / PDF / ZIP など"}
+                      </span>
+                    </label>
+
+                    <div className="deliverableField">
+                      <label>制作タグ</label>
+                      <div className="tagList">
+                        {TAG_OPTIONS.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            className={
+                              deliverableTags.includes(tag) ? "tag active" : "tag"
+                            }
+                            onClick={() => toggleDeliverableTag(tag)}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="deliverableField">
+                      <label>公開用タイトル</label>
+                      <input
+                        value={publicTitle}
+                        onChange={(e) => setPublicTitle(e.target.value)}
+                        placeholder="例：美容サロン公式サイト制作"
+                      />
+                    </div>
+
+                    <div className="deliverableField">
+                      <label>公開用コメント</label>
+                      <textarea
+                        value={publicComment}
+                        onChange={(e) => setPublicComment(e.target.value)}
+                        placeholder="制作実績ページに表示する説明文"
+                      />
+                    </div>
+
+                    <label className="publicToggle">
+                      <input
+                        type="checkbox"
+                        checked={isPublic}
+                        onChange={(e) => setIsPublic(e.target.checked)}
+                      />
+                      WEBサイトの制作実績に掲載する
+                    </label>
+
+                    <button
+                      type="button"
+                      className="saveDeliverableBtn"
+                      onClick={saveDeliverable}
+                      disabled={savingDeliverable}
+                    >
+                      {savingDeliverable ? "保存中" : "納品物を保存"}
+                    </button>
+                  </div>
+
+                  <div className="portfolioBox">
+                    <span>ポートフォリオ表示プレビュー</span>
+
+                    <div className="portfolioPreviewCard">
+                      <strong>{publicTitle || order.store_name || order.title}</strong>
+                      <p>
+                        {deliverableTags.length > 0
+                          ? deliverableTags.join(" / ")
+                          : "タグ未選択"}
+                      </p>
+                      <small>
+                        {publicComment || "公開用コメントがここに入ります。"}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="deliverableList">
+                  <h3>登録済み納品物</h3>
+
+                  {deliverables.length === 0 ? (
+                    <p className="emptyDeliverable">
+                      まだ納品物は登録されていません。
+                    </p>
+                  ) : (
+                    <div className="deliverableCards">
+                      {deliverables.map((item) => (
+                        <article key={item.id} className="deliverableCard">
+                          <div>
+                            <strong>
+                              {item.public_title || item.file_name || "納品物"}
+                            </strong>
+
+                            <p>{item.public_comment || "コメントなし"}</p>
+
+                            <div className="miniTags">
+                              {(item.tags || []).map((tag) => (
+                                <span key={tag}>{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="deliverableActions">
+                            {item.is_public && (
+                              <span className="publicBadge">WEB掲載</span>
+                            )}
+
+                            <a
+                              href={item.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              開く
+                            </a>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1444,46 +1719,296 @@ export default function OrderDetailPage() {
           margin: 0 0 18px 10px;
         }
 
-        .futureGrid {
-          display: grid;
-          grid-template-columns: 160px 1fr;
-          gap: 26px 24px;
-          align-items: start;
-          margin-top: 22px;
+        .deliverableArea {
+          margin-top: 28px;
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 26px;
+          padding: 24px;
+          box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
         }
 
-        .futureGrid > button {
-          height: 40px;
-          border: none;
-          border-radius: 999px;
+        .deliverableHead {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          align-items: flex-end;
+          margin-bottom: 20px;
+        }
+
+        .deliverableHead p {
+          margin: 0 0 4px;
+          font-size: 11px;
+          font-weight: 950;
+          letter-spacing: 0.14em;
+          color: #64748b;
+        }
+
+        .deliverableHead h2 {
+          margin: 0;
+          font-size: 24px;
+          line-height: 1.2;
+        }
+
+        .deliverableHead span {
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 800;
+          text-align: right;
+        }
+
+        .deliverableGrid {
+          display: grid;
+          grid-template-columns: 280px 1fr;
+          gap: 22px;
+          align-items: stretch;
+        }
+
+        .deliverableForm {
+          display: grid;
+          gap: 14px;
+        }
+
+        .deliverableUpload {
+          min-height: 92px;
           background: #858e98;
           color: #ffffff;
-          font-size: 14px;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          gap: 6px;
+          cursor: pointer;
+          text-align: center;
+          padding: 14px;
+          box-sizing: border-box;
+        }
+
+        .deliverableUpload input {
+          display: none;
+        }
+
+        .deliverableUpload strong {
+          font-size: 17px;
+          font-weight: 950;
+        }
+
+        .deliverableUpload span {
+          font-size: 11px;
+          opacity: 0.86;
+          word-break: break-all;
+        }
+
+        .deliverableField {
+          display: grid;
+          gap: 8px;
+        }
+
+        .deliverableField label {
+          font-size: 12px;
+          font-weight: 950;
+          color: #374151;
+        }
+
+        .deliverableField input,
+        .deliverableField textarea {
+          width: 100%;
+          border-radius: 14px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #374151;
+          box-sizing: border-box;
+          font-family: inherit;
+        }
+
+        .deliverableField textarea {
+          min-height: 86px;
+          resize: vertical;
+          line-height: 1.6;
+        }
+
+        .tagList {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .tag {
+          border: 1px solid #d1d5db;
+          border-radius: 999px;
+          background: #ffffff;
+          color: #374151;
+          padding: 7px 10px;
+          font-size: 11px;
           font-weight: 900;
           cursor: pointer;
         }
 
-        .futureBox {
-          background: #858e98;
-          border-radius: 18px;
-          color: rgba(255, 255, 255, 0.55);
+        .tag.active {
+          background: #111827;
+          border-color: #111827;
+          color: #ffffff;
+        }
+
+        .publicToggle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
           font-weight: 900;
+          color: #374151;
+        }
+
+        .saveDeliverableBtn {
+          border: none;
+          border-radius: 999px;
+          background: #3b82f6;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 950;
+          padding: 12px 16px;
+          cursor: pointer;
+        }
+
+        .saveDeliverableBtn:disabled {
+          background: #94a3b8;
+          cursor: default;
+        }
+
+        .portfolioBox {
+          min-height: 240px;
+          background: #858e98;
+          color: rgba(255, 255, 255, 0.62);
+          border-radius: 22px;
           display: flex;
           align-items: center;
           justify-content: center;
+          flex-direction: column;
+          gap: 18px;
+          padding: 24px;
           text-align: center;
-          padding: 18px;
           box-sizing: border-box;
         }
 
-        .largeBox {
-          min-height: 128px;
+        .portfolioBox > span {
+          font-size: 18px;
+          font-weight: 950;
         }
 
-        .smallBox {
-          min-height: 128px;
-          grid-column: 2;
-          width: 72%;
+        .portfolioPreviewCard {
+          width: min(420px, 100%);
+          background: rgba(255, 255, 255, 0.16);
+          border: 1px solid rgba(255, 255, 255, 0.22);
+          border-radius: 18px;
+          color: #ffffff;
+          padding: 18px;
+          box-sizing: border-box;
+          text-align: left;
+        }
+
+        .portfolioPreviewCard strong {
+          display: block;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+
+        .portfolioPreviewCard p {
+          margin: 0 0 10px;
+          font-size: 12px;
+          opacity: 0.9;
+        }
+
+        .portfolioPreviewCard small {
+          line-height: 1.7;
+          opacity: 0.86;
+        }
+
+        .deliverableList {
+          margin-top: 24px;
+        }
+
+        .deliverableList h3 {
+          font-size: 17px;
+          margin: 0 0 12px;
+        }
+
+        .emptyDeliverable {
+          font-size: 13px;
+          font-weight: 800;
+          color: #64748b;
+        }
+
+        .deliverableCards {
+          display: grid;
+          gap: 10px;
+        }
+
+        .deliverableCard {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 14px;
+          background: #f8fafc;
+        }
+
+        .deliverableCard strong {
+          display: block;
+          font-size: 14px;
+          margin-bottom: 6px;
+        }
+
+        .deliverableCard p {
+          margin: 0 0 8px;
+          font-size: 12px;
+          line-height: 1.6;
+          color: #64748b;
+        }
+
+        .miniTags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .miniTags span {
+          border-radius: 999px;
+          background: #e0e7ff;
+          color: #3730a3;
+          font-size: 10px;
+          font-weight: 900;
+          padding: 4px 8px;
+        }
+
+        .deliverableActions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          white-space: nowrap;
+        }
+
+        .publicBadge {
+          border-radius: 999px;
+          background: #dcfce7;
+          color: #15803d;
+          font-size: 10px;
+          font-weight: 950;
+          padding: 6px 8px;
+        }
+
+        .deliverableActions a {
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff;
+          text-decoration: none;
+          font-size: 11px;
+          font-weight: 950;
+          padding: 8px 12px;
         }
 
         .orderHint {
@@ -1511,7 +2036,8 @@ export default function OrderDetailPage() {
         }
 
         button:hover,
-        .imageAddBtn:hover {
+        .imageAddBtn:hover,
+        .deliverableUpload:hover {
           opacity: 0.96;
           transform: translateY(-1px);
           transition: 0.2s ease;
@@ -1521,12 +2047,11 @@ export default function OrderDetailPage() {
           .page {
             padding: 14px;
             background: #f3f6fa;
-            height: 100dvh;
-            overflow: hidden;
+            min-height: 100dvh;
           }
 
           .shell {
-            height: 100%;
+            height: auto;
             display: flex;
             flex-direction: column;
           }
@@ -1547,8 +2072,8 @@ export default function OrderDetailPage() {
           }
 
           .chatCard {
-            flex: 1;
-            min-height: 0;
+            height: 76dvh;
+            min-height: 560px;
             border-radius: 22px;
           }
 
@@ -1636,15 +2161,82 @@ export default function OrderDetailPage() {
           }
 
           .metaPanel {
-            display: none;
+            width: 100%;
+            margin: 28px auto 0;
+            display: block;
+          }
+
+          .storeLine {
+            display: block;
+          }
+
+          .storeLine span {
+            display: block;
+            margin-bottom: 6px;
+          }
+
+          .storeLine strong {
+            font-size: 22px;
+          }
+
+          .metaControls {
+            border-radius: 22px;
+            grid-template-columns: 1fr;
+            padding: 14px;
+            gap: 10px;
+            overflow: visible;
+          }
+
+          .metaField {
+            border-left: none;
+            padding: 0;
+            display: grid;
+          }
+
+          .statusPill {
+            margin: 0;
+            width: 100%;
+          }
+
+          .saveMetaBtn {
+            margin: 0;
+            width: 100%;
+            height: 36px;
+          }
+
+          .deliverableArea {
+            padding: 18px;
+            border-radius: 22px;
+          }
+
+          .deliverableHead {
+            display: block;
+          }
+
+          .deliverableHead span {
+            display: block;
+            text-align: left;
+            margin-top: 8px;
+          }
+
+          .deliverableGrid {
+            grid-template-columns: 1fr;
+          }
+
+          .portfolioBox {
+            min-height: 200px;
+          }
+
+          .deliverableCard {
+            display: block;
+          }
+
+          .deliverableActions {
+            margin-top: 12px;
           }
 
           .errorBox {
-            position: fixed;
-            left: 14px;
-            right: 14px;
-            bottom: 12px;
-            z-index: 20;
+            margin-top: 14px;
           }
         }
       `}</style>
