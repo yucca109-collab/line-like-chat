@@ -1174,7 +1174,7 @@ export default function OrderDetailPage() {
                       <input
                         value={publicTitle}
                         onChange={(e) => setPublicTitle(e.target.value)}
-                        placeholder="例：美容サロン公式サイト制作"
+                        placeholder="例：〇〇ベントバナー制作"
                       />
                     </div>
 
