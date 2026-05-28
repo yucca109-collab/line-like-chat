@@ -2302,6 +2302,12 @@ export default function OrderDetailPage() {
   .errorBox {
     display: none !important;
   }
+
+    input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
       `}</style>
     </div>
