@@ -2223,7 +2223,7 @@ export default function OrderDetailPage() {
           }
 
           .titleBlock h1 {
-            font-size: 24px;
+            font-size: 16px;
           }
 
           .creatorName {
