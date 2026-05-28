@@ -971,10 +971,15 @@ export default function OrderDetailPage() {
                   <h1>{order.title}</h1>
                 </div>
 
-                <div className="creatorName">
-                  作成者:{order.created_by_name || "未入力"}
-                </div>
-              </div>
+                  <div className="creatorName">
+                    <span>
+                      作成者:{order.created_by_name || "未入力"}
+                    </span>
+                  
+                    <span className="loginUser">
+                      ログイン中:{userName}
+                    </span>
+                  </div>
 
               <div ref={messagesBoxRef} className="messagesBox">
                 {messages.length === 0 ? (
@@ -2174,6 +2179,20 @@ export default function OrderDetailPage() {
           transform: translateY(-1px);
           transition: 0.2s ease;
         }
+
+       .creatorName {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-weight: 900;
+        font-size: 15px;
+      }
+
+.loginUser {
+  opacity: 0.7;
+  font-size: 13px;
+}
 
        @media (max-width: 768px) {
   .page {
