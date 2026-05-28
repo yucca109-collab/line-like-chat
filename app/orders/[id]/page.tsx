@@ -2195,9 +2195,7 @@ export default function OrderDetailPage() {
             background: #ffffff;
           }
 
-          .loginName {
-            display: none;
-          }
+         
 
           .chatCard {
             height: 76dvh;
