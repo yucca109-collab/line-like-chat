@@ -2372,6 +2372,14 @@ export default function OrderDetailPage() {
             margin-top: 14px;
           }
         }
+
+        @media (max-width: 768px) {
+  .metaPanel,
+  .orderHint,
+  .errorBox {
+    display: none !important;
+  }
+}
       `}</style>
     </div>
   );
