@@ -970,10 +970,6 @@ export default function OrderDetailPage() {
                   <span className="titleLabel">案件名</span>
                   <h1>{order.title}</h1>
                 </div>
-
-                <div className="creatorName">
-                  作成者:{order.created_by_name || "未入力"}
-                </div>
               </div>
 
               <div ref={messagesBoxRef} className="messagesBox">
