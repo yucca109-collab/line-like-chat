@@ -2292,11 +2292,7 @@ export default function OrderDetailPage() {
             height: 48px;
           }
 
-          .metaPanel {
-            width: 100%;
-            margin: 28px auto 0;
-            display: block;
-          }
+          
 
           .storeLine {
             display: block;
@@ -2371,6 +2367,24 @@ export default function OrderDetailPage() {
           .errorBox {
             margin-top: 14px;
           }
+          .metaPanel {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .metaPanel {
+    display: none !important;
+  }
+
+  .page {
+    overflow: hidden;
+  }
+
+  .chatCard {
+    height: calc(100dvh - 40px);
+    min-height: 0;
+  }
+}
         }
       `}</style>
     </div>
