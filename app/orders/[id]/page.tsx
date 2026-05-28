@@ -1428,7 +1428,7 @@ export default function OrderDetailPage() {
         }
 
         .loginName {
-          font-size: 15px;
+          font-size: 13px;
           font-weight: 900;
           color: #263241;
         }
