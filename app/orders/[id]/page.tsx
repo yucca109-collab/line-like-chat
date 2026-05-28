@@ -966,10 +966,16 @@ export default function OrderDetailPage() {
           <>
             <section className="chatCard">
               <div className="chatHeader">
-                <div className="titleBlock">
-                  <span className="titleLabel">案件名</span>
-                  <h1>{order.title}</h1>
-                </div>
+  <div className="titleBlock">
+    <span className="titleLabel">案件名</span>
+    <h1>{order.title}</h1>
+  </div>
+
+  <div className="creatorName">
+    <span>作成者:{order.created_by_name || "未入力"}</span>
+    <span className="loginUser">ログイン中:{userName}</span>
+  </div>
+</div>
 
                   <div className="creatorName">
                     <span>
