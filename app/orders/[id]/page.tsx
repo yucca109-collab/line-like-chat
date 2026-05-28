@@ -332,6 +332,71 @@ export default function OrderDetailPage() {
     );
   };
 
+
+
+
+  const compressImage = async (file: File): Promise<File> => {
+  if (!file.type.startsWith("image/")) return file;
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      img.src = reader.result as string;
+    };
+
+    img.onerror = reject;
+
+    img.onload = () => {
+      const maxWidth = 1200;
+      const scale = Math.min(1, maxWidth / img.width);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+
+          resolve(
+            new File(
+              [blob],
+              file.name.replace(/\.[^/.]+$/, ".webp"),
+              { type: "image/webp" }
+            )
+          );
+        },
+        "image/webp",
+        0.82
+      );
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+
+
+  
+  
+  
+  
+  
+  
   const saveDeliverable = async () => {
     if (!order) return;
 
@@ -345,7 +410,9 @@ export default function OrderDetailPage() {
     setSavingDeliverable(true);
 
     try {
-      const fileExt = deliverableFile.name.split(".").pop() || "file";
+      const uploadFile = await compressImage(deliverableFile);
+
+      const fileExt = uploadFile.name.split(".").pop() || "file";
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${fileExt}`;
@@ -354,7 +421,7 @@ export default function OrderDetailPage() {
 
       const { error: uploadError } = await supabase.storage
         .from("deliverables")
-        .upload(filePath, deliverableFile);
+        .upload(filePath, uploadFile);
 
       if (uploadError) {
         throw new Error(`納品物アップロード失敗: ${uploadError.message}`);
@@ -369,8 +436,8 @@ export default function OrderDetailPage() {
         .insert({
           order_id: order.id,
           file_url: publicUrlData.publicUrl,
-          file_name: deliverableFile.name,
-          file_type: deliverableFile.type || null,
+          file_name: uploadFile.name,
+          file_type: uploadFile.type || null,
           tags: deliverableTags,
           public_title: publicTitle || null,
           public_comment: publicComment || null,
@@ -558,7 +625,9 @@ export default function OrderDetailPage() {
     try {
       const uploadedImageUrls: string[] = [];
 
-      for (const file of files) {
+      for (const originalFile of files) {
+        const file = await compressImage(originalFile);
+
         if (file.size > 5 * 1024 * 1024) {
           throw new Error(
             `「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`
