@@ -29,19 +29,6 @@ type Message = {
   created_at: string;
 };
 
-type Deliverable = {
-  id: string;
-  order_id: string;
-  file_url: string;
-  file_name: string | null;
-  file_type: string | null;
-  tags: string[] | null;
-  public_title: string | null;
-  public_comment: string | null;
-  is_public: boolean | null;
-  created_at: string;
-};
-
 type TypingRow = {
   user_name: string;
   is_typing: boolean;
@@ -139,14 +126,12 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [savingDeliverable, setSavingDeliverable] = useState(false);
-  const [deletingDeliverableId, setDeletingDeliverableId] = useState<string | null>(null);
 
   const [err, setErr] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -201,20 +186,6 @@ export default function OrderDetailPage() {
     setDraftInvoiceTo(targetOrder.invoice_to || "");
   };
 
-  const loadDeliverables = async () => {
-    const { data, error } = await supabase
-      .from("order_deliverables")
-      .select(
-        "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
-      )
-      .eq("order_id", orderId)
-      .order("created_at", { ascending: false });
-
-    if (!error) {
-      setDeliverables((data ?? []) as Deliverable[]);
-    }
-  };
-
   const loadAll = async () => {
     setErr("");
     setLoading(true);
@@ -258,8 +229,6 @@ export default function OrderDetailPage() {
     } else {
       setMessages((msgData ?? []) as Message[]);
     }
-
-    await loadDeliverables();
 
     setLoading(false);
     await markAsRead();
@@ -448,27 +417,6 @@ export default function OrderDetailPage() {
         .from("deliverables")
         .getPublicUrl(filePath);
 
-      const { data, error } = await supabase
-        .from("order_deliverables")
-        .insert({
-          order_id: order.id,
-          file_url: publicUrlData.publicUrl,
-          file_name: uploadFile.name,
-          file_type: uploadFile.type || null,
-          tags: allTags,
-          public_title: titleForSave,
-          public_comment: publicComment || null,
-          is_public: true,
-        })
-        .select(
-          "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
-        )
-        .single();
-
-      if (error) {
-        throw new Error(`納品物登録失敗: ${error.message}`);
-      }
-
       const { error: worksError } = await supabase.from("works").insert({
         source_order_id: order.id,
         file_url: publicUrlData.publicUrl,
@@ -485,7 +433,6 @@ export default function OrderDetailPage() {
         throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
       }
 
-      setDeliverables((prev) => [data as Deliverable, ...prev]);
       setDeliverableFile(null);
       setDeliverableTags([]);
       setHashTagText("");
@@ -496,35 +443,6 @@ export default function OrderDetailPage() {
       setErr(e instanceof Error ? e.message : "制作事例の保存に失敗しました");
     } finally {
       setSavingDeliverable(false);
-    }
-  };
-
-  const deleteDeliverable = async (item: Deliverable) => {
-    const ok = confirm(
-      "この納品物を案件内の一覧から削除しますか？\n制作事例テーブルと画像本体は削除されません。"
-    );
-    if (!ok) return;
-
-    setErr("");
-    setSaveMessage("");
-    setDeletingDeliverableId(item.id);
-
-    try {
-      const { error } = await supabase
-        .from("order_deliverables")
-        .delete()
-        .eq("id", item.id);
-
-      if (error) {
-        throw new Error(`削除に失敗しました: ${error.message}`);
-      }
-
-      setDeliverables((prev) => prev.filter((row) => row.id !== item.id));
-      setSaveMessage("案件内の納品物一覧から削除しました");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "削除に失敗しました");
-    } finally {
-      setDeletingDeliverableId(null);
     }
   };
 
@@ -850,26 +768,9 @@ export default function OrderDetailPage() {
       )
       .subscribe();
 
-    const deliverableChannel = supabase
-      .channel(`deliverables-realtime-${orderId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "order_deliverables",
-          filter: `order_id=eq.${orderId}`,
-        },
-        () => {
-          loadDeliverables();
-        }
-      )
-      .subscribe();
-
     return () => {
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(orderChannel);
-      supabase.removeChannel(deliverableChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
@@ -1378,48 +1279,6 @@ export default function OrderDetailPage() {
                     {savingDeliverable ? "アップロード中..." : "制作事例をアップロード"}
                   </button>
                 </div>
-              </div>
-
-              <div className="deliverableList">
-                <h3>登録済み納品物</h3>
-
-                {deliverables.length === 0 ? (
-                  <p className="emptyDeliverable">まだ納品物は登録されていません。</p>
-                ) : (
-                  <div className="deliverableCards">
-                    {deliverables.map((item) => (
-                      <article key={item.id} className="deliverableCard">
-                        <div>
-                          <strong>{item.public_title || item.file_name || "納品物"}</strong>
-                          <p>{item.public_comment || "コメントなし"}</p>
-
-                          <div className="miniTags">
-                            {(item.tags || []).map((tag) => (
-                              <span key={tag}>#{tag}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="deliverableActions">
-                          {item.is_public && <span className="publicBadge">WEB掲載</span>}
-
-                          <a href={item.file_url} target="_blank" rel="noopener noreferrer">
-                            開く
-                          </a>
-
-                          <button
-                            type="button"
-                            className="deleteDeliverableBtn"
-                            onClick={() => deleteDeliverable(item)}
-                            disabled={deletingDeliverableId === item.id}
-                          >
-                            {deletingDeliverableId === item.id ? "削除中" : "削除"}
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="orderHint">
@@ -2022,106 +1881,6 @@ export default function OrderDetailPage() {
 
         .saveWorkBtn:disabled {
           background: #94a3b8;
-          cursor: default;
-        }
-
-        .deliverableList {
-          margin-top: 24px;
-        }
-
-        .deliverableList h3 {
-          font-size: 17px;
-          margin: 0 0 12px;
-        }
-
-        .emptyDeliverable {
-          font-size: 13px;
-          font-weight: 800;
-          color: #64748b;
-        }
-
-        .deliverableCards {
-          display: grid;
-          gap: 10px;
-        }
-
-        .deliverableCard {
-          display: flex;
-          justify-content: space-between;
-          gap: 16px;
-          border: 1px solid #e5e7eb;
-          border-radius: 18px;
-          padding: 14px;
-          background: #f8fafc;
-        }
-
-        .deliverableCard strong {
-          display: block;
-          font-size: 14px;
-          margin-bottom: 6px;
-        }
-
-        .deliverableCard p {
-          margin: 0 0 8px;
-          font-size: 12px;
-          line-height: 1.6;
-          color: #64748b;
-        }
-
-        .miniTags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .miniTags span {
-          border-radius: 999px;
-          background: #e0e7ff;
-          color: #3730a3;
-          font-size: 10px;
-          font-weight: 900;
-          padding: 4px 8px;
-        }
-
-        .deliverableActions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          white-space: nowrap;
-        }
-
-        .publicBadge {
-          border-radius: 999px;
-          background: #dcfce7;
-          color: #15803d;
-          font-size: 10px;
-          font-weight: 950;
-          padding: 6px 8px;
-        }
-
-        .deliverableActions a {
-          border-radius: 999px;
-          background: #111827;
-          color: #ffffff;
-          text-decoration: none;
-          font-size: 11px;
-          font-weight: 950;
-          padding: 8px 12px;
-        }
-
-        .deleteDeliverableBtn {
-          border: none;
-          border-radius: 999px;
-          background: #ef4444;
-          color: #ffffff;
-          font-size: 11px;
-          font-weight: 950;
-          padding: 8px 12px;
-          cursor: pointer;
-        }
-
-        .deleteDeliverableBtn:disabled {
-          background: #fca5a5;
           cursor: default;
         }
 
