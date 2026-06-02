@@ -466,41 +466,40 @@ export default function OrderDetailPage() {
     }
   };
 
-  const deleteDeliverable = async (item: Deliverable) => {
-    const ok = confirm("この納品物を削除しますか？\nWEBサイトに掲載中の場合も一覧から消えます。");
-    if (!ok) return;
+const deleteDeliverable = async (item: Deliverable) => {
+  const ok = confirm(
+    "この納品物を削除しますか？\nWEBサイトに掲載中の場合も一覧から消えます。"
+  );
+  if (!ok) return;
 
-    setErr("");
-    setSaveMessage("");
-    setDeletingDeliverableId(item.id);
+  setErr("");
+  setSaveMessage("");
+  setDeletingDeliverableId(item.id);
 
-    try {
-      const { error } = await supabase
-        .from("order_deliverables")
-        .delete()
-        .eq("id", item.id);
+  try {
+    const { error } = await supabase
+      .from("order_deliverables")
+      .delete()
+      .eq("id", item.id);
 
-      if (error) {
-        throw new Error(`削除に失敗しました: ${error.message}`);
-      }
-
-      const marker = "/storage/v1/object/public/deliverables/";
-      const filePath = item.file_url.includes(marker)
-        ? item.file_url.split(marker)[1]
-        : "";
-
-      if (filePath) {
-        await supabase.storage.from("deliverables").remove([filePath]);
-      }
-
-      setDeliverables((prev) => prev.filter((row) => row.id !== item.id));
-      setSaveMessage("納品物を削除しました");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "削除に失敗しました");
-    } finally {
-      setDeletingDeliverableId(null);
+    if (error) {
+      throw new Error(`削除に失敗しました: ${error.message}`);
     }
-  };
+
+    setDeliverables((prev) =>
+      prev.filter((row) => row.id !== item.id)
+    );
+
+    setSaveMessage("納品物を削除しました");
+  } catch (e) {
+    setErr(
+      e instanceof Error ? e.message : "削除に失敗しました"
+    );
+  } finally {
+    setDeletingDeliverableId(null);
+  }
+};
+
 
   const syncTypingState = async () => {
     const name = localStorage.getItem("user_name");
