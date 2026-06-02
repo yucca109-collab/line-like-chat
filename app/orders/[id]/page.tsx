@@ -1207,34 +1207,60 @@ export default function OrderDetailPage() {
                         }}
                       />
 
-                      <div className="dropIcon">☁</div>
-                      <strong>ここに画像・動画・ファイルをアップロード</strong>
-                      <span>クリックしてファイルを選択できます</span>
-                    </label>
+    <div className="dropzone">
+  <input
+    type="file"
+    id="deliverable-upload"
+    accept="image/*,video/*,.zip,.pdf,.ai,.psd"
+    onChange={(e) =>
+      setDeliverableFile(e.target.files?.[0] || null)
+    }
+  />
 
-                    {deliverableFile && (
-                      <div className="selectedFile">
-                        {deliverablePreviewUrl ? (
-                          <img src={deliverablePreviewUrl} alt="選択ファイル" />
-                        ) : (
-                          <div className="fileIcon">FILE</div>
-                        )}
+  <label htmlFor="deliverable-upload" className="dropzoneLabel">
 
-                        <div>
-                          <strong>{deliverableFile.name}</strong>
-                          <small>{deliverableFile.type || "file"}</small>
-                        </div>
+    <div className="dropIcon" aria-hidden="true">
+      <svg
+        viewBox="0 0 512 512"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M427.258,244.249c0.204-2.604,0.338-5.228,0.338-7.885c0-55.233-44.775-100.008-100.008-100.008c-17.021,0-33.042,4.264-47.072,11.764c-15.136-42.633-55.81-73.172-103.633-73.172c-60.729,0-109.96,49.231-109.96,109.96c0,11.416,1.741,22.425,4.97,32.778C29.804,234.254,0,275.238,0,323.21c0,62.627,50.769,113.396,113.396,113.396h292.642c3.021,0.284,6.079,0.445,9.175,0.445c53.454,0,96.788-43.333,96.788-96.788C512,290.891,475.024,250.183,427.258,244.249z M311.709,296.227h-20.452c-6.044,0-10.989,4.945-10.989,10.99v58.074c0,6.044-4.946,10.99-10.989,10.99h-26.558c-6.044,0-10.989-4.946-10.989-10.99v-58.074c0-6.044-4.945-10.99-10.989-10.99h-20.452c-6.044,0-8-3.94-4.347-8.755l53.414-70.405c3.652-4.816,9.631-4.816,13.284,0l53.414,70.405C319.709,292.288,317.753,296.227,311.709,296.227z" />
+      </svg>
+    </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setDeliverableFile(null)}
-                          aria-label="ファイルを外す"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )}
-                  </div>
+    <strong>ドラッグ＆ドロップでアップロード</strong>
+    <span>クリックしてファイル選択もできます</span>
+  </label>
+
+  {deliverableFile && (
+    <div className="selectedFile">
+      {deliverablePreviewUrl ? (
+        <img
+          src={deliverablePreviewUrl}
+          alt="選択ファイル"
+        />
+      ) : (
+        <div className="fileIcon">FILE</div>
+      )}
+
+      <div className="selectedFileInfo">
+        <strong>{deliverableFile.name}</strong>
+        <small>{deliverableFile.type || "file"}</small>
+      </div>
+
+      <button
+        type="button"
+        className="removeFileButton"
+        onClick={() => setDeliverableFile(null)}
+        aria-label="ファイルを外す"
+      >
+        ×
+      </button>
+    </div>
+  )}
+</div>
+
+                      
 
                   <div className="workForm">
                     <div className="tagList">
@@ -2058,6 +2084,37 @@ export default function OrderDetailPage() {
             display: none !important;
           }
         }
+
+        .dropIcon {
+  width: 60px;
+  height: 60px;
+  color: #7c6bff;
+  margin-bottom: 14px;
+}
+
+.dropIcon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+.selectedFileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.removeFileButton {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #ff5f5f;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+
       `}</style>
     </div>
   );
