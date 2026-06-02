@@ -16,6 +16,8 @@ type Order = {
   designer_name: string | null;
   final_delivery_date: string | null;
   delivery_count: number | null;
+  product_name: string | null;
+  invoice_to: string | null;
 };
 
 type Message = {
@@ -63,6 +65,28 @@ type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ"
 
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
+const PRODUCT_OPTIONS = [
+  "",
+  "PCスライド",
+  "SPスライド",
+  "バナー",
+  "フリーバナー",
+  "ランキングロゴ",
+  "グラビア",
+  "GIF画像",
+  "動画",
+  "LP",
+  "WEBサイト",
+  "その他",
+] as const;
+
+const INVOICE_TO_OPTIONS = [
+  "",
+  "〇〇〇〇株式会社",
+  "1Best株式会社",
+  "その他",
+] as const;
+
 const TAG_OPTIONS = [
   "スマホスライド",
   "PCスライド",
@@ -98,34 +122,18 @@ const getNextStatus = (current: DisplayStatus): DisplayStatus => {
 
 const getStatusColor = (displayStatus: DisplayStatus) => {
   if (displayStatus === "新規") {
-    return {
-      bg: "#f59e0b",
-      text: "#ffffff",
-      shadow: "0 6px 16px rgba(245,158,11,0.18)",
-    };
+    return { bg: "#f59e0b", text: "#ffffff" };
   }
 
   if (displayStatus === "納品済み") {
-    return {
-      bg: "#22c55e",
-      text: "#ffffff",
-      shadow: "0 6px 16px rgba(34,197,94,0.16)",
-    };
+    return { bg: "#0d83ff", text: "#ffffff" };
   }
 
   if (displayStatus === "アーカイブ") {
-    return {
-      bg: "#6b7280",
-      text: "#ffffff",
-      shadow: "0 6px 16px rgba(107,114,128,0.16)",
-    };
+    return { bg: "#6b7280", text: "#ffffff" };
   }
 
-  return {
-    bg: "#3b82f6",
-    text: "#ffffff",
-    shadow: "0 6px 16px rgba(59,130,246,0.16)",
-  };
+  return { bg: "#3b82f6", text: "#ffffff" };
 };
 
 export default function OrderDetailPage() {
@@ -161,12 +169,16 @@ export default function OrderDetailPage() {
 
   const [draftDeliveryDate, setDraftDeliveryDate] = useState("");
   const [draftDeliveryCount, setDraftDeliveryCount] = useState(0);
+  const [draftProductName, setDraftProductName] = useState("");
+  const [draftInvoiceTo, setDraftInvoiceTo] = useState("");
 
   const [deliverableFile, setDeliverableFile] = useState<File | null>(null);
   const [deliverableTags, setDeliverableTags] = useState<string[]>([]);
+  const [hashTagText, setHashTagText] = useState("");
   const [publicTitle, setPublicTitle] = useState("");
   const [publicComment, setPublicComment] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -175,15 +187,28 @@ export default function OrderDetailPage() {
     }));
   }, [files]);
 
+  const deliverablePreviewUrl = useMemo(() => {
+    if (!deliverableFile || !deliverableFile.type.startsWith("image/")) return "";
+    return URL.createObjectURL(deliverableFile);
+  }, [deliverableFile]);
+
   useEffect(() => {
     return () => {
       previewUrls.forEach((item) => URL.revokeObjectURL(item.url));
     };
   }, [previewUrls]);
 
+  useEffect(() => {
+    return () => {
+      if (deliverablePreviewUrl) URL.revokeObjectURL(deliverablePreviewUrl);
+    };
+  }, [deliverablePreviewUrl]);
+
   const syncDeliveryDraft = (targetOrder: Order) => {
     setDraftDeliveryDate(targetOrder.final_delivery_date || "");
     setDraftDeliveryCount(targetOrder.delivery_count ?? 0);
+    setDraftProductName(targetOrder.product_name || "");
+    setDraftInvoiceTo(targetOrder.invoice_to || "");
   };
 
   const loadDeliverables = async () => {
@@ -216,7 +241,7 @@ export default function OrderDetailPage() {
     const { data: orderData, error: orderErr } = await supabase
       .from("orders")
       .select(
-        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count"
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count,product_name,invoice_to"
       )
       .eq("id", orderId)
       .single();
@@ -305,10 +330,12 @@ export default function OrderDetailPage() {
       .update({
         final_delivery_date: draftDeliveryDate || null,
         delivery_count: draftDeliveryCount,
+        product_name: draftProductName || null,
+        invoice_to: draftInvoiceTo || null,
       })
       .eq("id", order.id)
       .select(
-        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count"
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count,product_name,invoice_to"
       )
       .single();
 
@@ -323,7 +350,7 @@ export default function OrderDetailPage() {
 
     setOrder(updatedOrder);
     syncDeliveryDraft(updatedOrder);
-    setSaveMessage("保存しました");
+    setSaveMessage("案件メタ情報を保存しました");
   };
 
   const toggleDeliverableTag = (tag: string) => {
@@ -332,195 +359,192 @@ export default function OrderDetailPage() {
     );
   };
 
+  const getHashTags = () => {
+    return hashTagText
+      .split(/[\s,、#]+/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  };
 
-
+  const getAllWorkTags = () => {
+    return [...new Set([...deliverableTags, ...getHashTags()])];
+  };
 
   const compressImage = async (file: File): Promise<File> => {
-  if (!file.type.startsWith("image/")) return file;
+    if (!file.type.startsWith("image/")) return file;
 
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
 
-    reader.onload = () => {
-      img.src = reader.result as string;
-    };
+      reader.onload = () => {
+        img.src = reader.result as string;
+      };
 
-    img.onerror = reject;
+      img.onerror = reject;
 
-    img.onload = () => {
-      const maxWidth = 1200;
-      const scale = Math.min(1, maxWidth / img.width);
+      img.onload = () => {
+        const maxWidth = 1200;
+        const scale = Math.min(1, maxWidth / img.width);
 
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
 
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve(file);
-        return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+
+            resolve(
+              new File([blob], file.name.replace(/\.[^/.]+$/, ".webp"), {
+                type: "image/webp",
+              })
+            );
+          },
+          "image/webp",
+          0.82
+        );
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const saveDeliverable = async () => {
+    if (!order) return;
+
+    if (!deliverableFile) {
+      setErr("制作事例ファイルを選択してください");
+      return;
+    }
+
+    setErr("");
+    setSaveMessage("");
+    setSavingDeliverable(true);
+
+    try {
+      const uploadFile = await compressImage(deliverableFile);
+
+      const fileExt = uploadFile.name.split(".").pop() || "file";
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${fileExt}`;
+
+      const filePath = `${order.id}/${fileName}`;
+      const allTags = getAllWorkTags();
+      const titleForSave = publicTitle || order.store_name || order.title || "制作事例";
+
+      const { error: uploadError } = await supabase.storage
+        .from("deliverables")
+        .upload(filePath, uploadFile);
+
+      if (uploadError) {
+        throw new Error(`アップロード失敗: ${uploadError.message}`);
       }
 
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const { data: publicUrlData } = supabase.storage
+        .from("deliverables")
+        .getPublicUrl(filePath);
 
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve(file);
-            return;
-          }
+      const { data, error } = await supabase
+        .from("order_deliverables")
+        .insert({
+          order_id: order.id,
+          file_url: publicUrlData.publicUrl,
+          file_name: uploadFile.name,
+          file_type: uploadFile.type || null,
+          tags: allTags,
+          public_title: titleForSave,
+          public_comment: publicComment || null,
+          is_public: isPublic,
+        })
+        .select(
+          "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+        )
+        .single();
 
-          resolve(
-            new File(
-              [blob],
-              file.name.replace(/\.[^/.]+$/, ".webp"),
-              { type: "image/webp" }
-            )
-          );
-        },
-        "image/webp",
-        0.82
+      if (error) {
+        throw new Error(`納品物登録失敗: ${error.message}`);
+      }
+
+      if (isPublic) {
+        const { error: worksError } = await supabase.from("works").insert({
+          source_order_id: order.id,
+          file_url: publicUrlData.publicUrl,
+          file_name: uploadFile.name,
+          file_type: uploadFile.type || null,
+          tags: allTags,
+          public_title: titleForSave,
+          public_comment: publicComment || null,
+          store_name: order.store_name || null,
+          order_title: order.title || null,
+        });
+
+        if (worksError) {
+          throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
+        }
+      }
+
+      setDeliverables((prev) => [data as Deliverable, ...prev]);
+      setDeliverableFile(null);
+      setDeliverableTags([]);
+      setHashTagText("");
+      setPublicTitle("");
+      setPublicComment("");
+      setIsPublic(true);
+
+      setSaveMessage(
+        isPublic
+          ? "納品物を保存し、制作事例にも追加しました"
+          : "納品物を保存しました"
       );
-    };
-
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-
-
-  
-  
-  
-  
-const saveDeliverable = async () => {
-  if (!order) return;
-
-  if (!deliverableFile) {
-    setErr("納品物ファイルを選択してください");
-    return;
-  }
-
-  setErr("");
-  setSaveMessage("");
-  setSavingDeliverable(true);
-
-  try {
-    const uploadFile = await compressImage(deliverableFile);
-
-    const fileExt = uploadFile.name.split(".").pop() || "file";
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${fileExt}`;
-
-    const filePath = `${order.id}/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("deliverables")
-      .upload(filePath, uploadFile);
-
-    if (uploadError) {
-      throw new Error(`納品物アップロード失敗: ${uploadError.message}`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "制作事例の保存に失敗しました");
+    } finally {
+      setSavingDeliverable(false);
     }
+  };
 
-    const { data: publicUrlData } = supabase.storage
-      .from("deliverables")
-      .getPublicUrl(filePath);
+  const deleteDeliverable = async (item: Deliverable) => {
+    const ok = confirm(
+      "この納品物を案件内の一覧から削除しますか？\n制作事例テーブルと画像本体は削除されません。"
+    );
+    if (!ok) return;
 
-    const { data, error } = await supabase
-      .from("order_deliverables")
-      .insert({
-        order_id: order.id,
-        file_url: publicUrlData.publicUrl,
-        file_name: uploadFile.name,
-        file_type: uploadFile.type || null,
-        tags: deliverableTags,
-        public_title: publicTitle || null,
-        public_comment: publicComment || null,
-        is_public: isPublic,
-      })
-      .select(
-        "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
-      )
-      .single();
+    setErr("");
+    setSaveMessage("");
+    setDeletingDeliverableId(item.id);
 
-    if (error) {
-      throw new Error(`納品物登録失敗: ${error.message}`);
-    }
+    try {
+      const { error } = await supabase
+        .from("order_deliverables")
+        .delete()
+        .eq("id", item.id);
 
-    if (isPublic) {
-      const { error: worksError } = await supabase.from("works").insert({
-        source_order_id: order.id,
-        file_url: publicUrlData.publicUrl,
-        file_name: uploadFile.name,
-        file_type: uploadFile.type || null,
-        tags: deliverableTags,
-        public_title: publicTitle || null,
-        public_comment: publicComment || null,
-        store_name: order.store_name || null,
-        order_title: order.title || null,
-      });
-
-      if (worksError) {
-        throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
+      if (error) {
+        throw new Error(`削除に失敗しました: ${error.message}`);
       }
+
+      setDeliverables((prev) => prev.filter((row) => row.id !== item.id));
+      setSaveMessage("案件内の納品物一覧から削除しました");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "削除に失敗しました");
+    } finally {
+      setDeletingDeliverableId(null);
     }
-
-    setDeliverables((prev) => [data as Deliverable, ...prev]);
-    setDeliverableFile(null);
-    setDeliverableTags([]);
-    setPublicTitle("");
-    setPublicComment("");
-    setIsPublic(false);
-
-    setSaveMessage(
-      isPublic
-        ? "納品物を保存し、制作事例にも追加しました"
-        : "納品物を保存しました"
-    );
-  } catch (e) {
-    setErr(e instanceof Error ? e.message : "納品物の保存に失敗しました");
-  } finally {
-    setSavingDeliverable(false);
-  }
-};
-
-const deleteDeliverable = async (item: Deliverable) => {
-  const ok = confirm(
-    "この納品物を削除しますか？\nWEBサイトに掲載中の場合も一覧から消えます。"
-  );
-  if (!ok) return;
-
-  setErr("");
-  setSaveMessage("");
-  setDeletingDeliverableId(item.id);
-
-  try {
-    const { error } = await supabase
-      .from("order_deliverables")
-      .delete()
-      .eq("id", item.id);
-
-    if (error) {
-      throw new Error(`削除に失敗しました: ${error.message}`);
-    }
-
-    setDeliverables((prev) =>
-      prev.filter((row) => row.id !== item.id)
-    );
-
-    setSaveMessage("納品物を削除しました");
-  } catch (e) {
-    setErr(
-      e instanceof Error ? e.message : "削除に失敗しました"
-    );
-  } finally {
-    setDeletingDeliverableId(null);
-  }
-};
-
+  };
 
   const syncTypingState = async () => {
     const name = localStorage.getItem("user_name");
@@ -964,6 +988,7 @@ const deleteDeliverable = async (item: Deliverable) => {
   const currentStatus = getDisplayStatus(order?.status ?? "");
   const statusStyle = getStatusColor(currentStatus);
   const hasSendContent = input.trim().length > 0 || files.length > 0;
+  const allPreviewTags = getAllWorkTags();
 
   return (
     <div className="page">
@@ -1171,67 +1196,100 @@ const deleteDeliverable = async (item: Deliverable) => {
               </div>
             </section>
 
-            <section className="metaPanel">
-              <div className="storeLine">
-                <span>使用店舗名</span>
-                <strong>{order.store_name || "店舗名未入力"}</strong>
-              </div>
-
-              <div className="metaControls">
-                <div className="metaField designerField">
-                  <span>担当デザイナー</span>
-
-                  <select
-                    value={order.designer_name || ""}
-                    onChange={(e) => updateDesignerName(e.target.value)}
-                  >
-                    {DESIGNER_OPTIONS.map((name) => (
-                      <option key={name || "empty"} value={name}>
-                        {name || "未設定"}
-                      </option>
-                    ))}
-                  </select>
+            <section className="workPanel">
+              <div className="workTop">
+                <div className="storeNameBlock">
+                  <span>使用店舗名</span>
+                  <strong>{order.store_name || "店舗名未入力"}</strong>
                 </div>
 
                 <button
                   type="button"
-                  className="statusPill"
+                  className="largeStatusBtn"
                   style={{
                     background: statusStyle.bg,
                     color: statusStyle.text,
-                    boxShadow: statusStyle.shadow,
                   }}
                   onClick={updateOrderStatus}
-                  title="クリックでステータス変更"
                 >
                   {currentStatus}
                 </button>
+              </div>
 
-                <div className="metaField">
-                  <span>最終納品日</span>
+              <div className="metaBox">
+                <div className="metaGrid">
+                  <label className="metaItem wide">
+                    <span>商品名</span>
+                    <select
+                      value={draftProductName}
+                      onChange={(e) => {
+                        setDraftProductName(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    >
+                      {PRODUCT_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                  <input
-                    type="date"
-                    value={draftDeliveryDate}
-                    onChange={(e) => {
-                      setDraftDeliveryDate(e.target.value);
-                      setSaveMessage("");
-                    }}
-                  />
-                </div>
+                  <label className="metaItem wide">
+                    <span>請求先</span>
+                    <select
+                      value={draftInvoiceTo}
+                      onChange={(e) => {
+                        setDraftInvoiceTo(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    >
+                      {INVOICE_TO_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                <div className="metaField">
-                  <span>納品数</span>
+                  <label className="metaItem">
+                    <span>最終納品日</span>
+                    <input
+                      type="date"
+                      value={draftDeliveryDate}
+                      onChange={(e) => {
+                        setDraftDeliveryDate(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    />
+                  </label>
 
-                  <input
-                    type="number"
-                    min="0"
-                    value={draftDeliveryCount}
-                    onChange={(e) => {
-                      setDraftDeliveryCount(Number(e.target.value || 0));
-                      setSaveMessage("");
-                    }}
-                  />
+                  <label className="metaItem">
+                    <span>納品数</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftDeliveryCount}
+                      onChange={(e) => {
+                        setDraftDeliveryCount(Number(e.target.value || 0));
+                        setSaveMessage("");
+                      }}
+                    />
+                  </label>
+
+                  <label className="metaItem">
+                    <span>担当デザイナー</span>
+                    <select
+                      value={order.designer_name || ""}
+                      onChange={(e) => updateDesignerName(e.target.value)}
+                    >
+                      {DESIGNER_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
                 <button
@@ -1246,165 +1304,176 @@ const deleteDeliverable = async (item: Deliverable) => {
 
               {saveMessage && <div className="saveMessage">{saveMessage}</div>}
 
-              <div className="deliverableArea">
-                <div className="deliverableHead">
-                  <div>
-                    <p>FINAL DELIVERABLE</p>
-                    <h2>最終納品物</h2>
-                  </div>
-                  <span>WEBサイトの制作実績へ反映する納品データ</span>
-                </div>
+              <div className="uploadBox">
+                <div
+                  className={`dropArea ${isDragOver ? "isDragOver" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) setDeliverableFile(file);
+                  }}
+                >
+                  <label htmlFor="deliverable-upload" className="dropLabel">
+                    <input
+                      id="deliverable-upload"
+                      type="file"
+                      onChange={(e) => {
+                        setDeliverableFile(e.target.files?.[0] || null);
+                        e.currentTarget.value = "";
+                      }}
+                    />
 
-                <div className="deliverableGrid">
-                  <div className="deliverableForm">
-                    <label htmlFor="deliverable-upload" className="deliverableUpload">
-                      <input
-                        id="deliverable-upload"
-                        type="file"
-                        onChange={(e) => {
-                          setDeliverableFile(e.target.files?.[0] || null);
-                          e.currentTarget.value = "";
-                        }}
-                      />
-                      <strong>納品物をUP</strong>
-                      <span>
-                        {deliverableFile
-                          ? deliverableFile.name
-                          : "画像 / PDF / ZIP など"}
-                      </span>
-                    </label>
+                    <div className="dropIcon">☁</div>
+                    <strong>Drag & drop images, videos, or any file</strong>
+                    <span>or browse files on your computer</span>
+                  </label>
 
-                    <div className="deliverableField">
-                      <label>制作タグ</label>
-                      <div className="tagList">
-                        {TAG_OPTIONS.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            className={
-                              deliverableTags.includes(tag) ? "tag active" : "tag"
-                            }
-                            onClick={() => toggleDeliverableTag(tag)}
-                          >
-                            {tag}
-                          </button>
-                        ))}
+                  {deliverableFile && (
+                    <div className="selectedFile">
+                      {deliverablePreviewUrl ? (
+                        <img src={deliverablePreviewUrl} alt="選択ファイル" />
+                      ) : (
+                        <div className="fileIcon">FILE</div>
+                      )}
+
+                      <div>
+                        <strong>{deliverableFile.name}</strong>
+                        <small>{deliverableFile.type || "file"}</small>
                       </div>
-                    </div>
 
-                    <div className="deliverableField">
-                      <label>公開用タイトル</label>
-                      <input
-                        value={publicTitle}
-                        onChange={(e) => setPublicTitle(e.target.value)}
-                        placeholder="例：〇〇ベントバナー制作"
-                      />
-                    </div>
-
-                    <div className="deliverableField">
-                      <label>公開用コメント</label>
-                      <textarea
-                        value={publicComment}
-                        onChange={(e) => setPublicComment(e.target.value)}
-                        placeholder="制作実績ページに表示する説明文"
-                      />
-                    </div>
-
-                    <label className="publicToggle">
-                      <input
-                        type="checkbox"
-                        checked={isPublic}
-                        onChange={(e) => setIsPublic(e.target.checked)}
-                      />
-                      WEBサイトの制作実績に掲載する
-                    </label>
-
-                    <button
-                      type="button"
-                      className="saveDeliverableBtn"
-                      onClick={saveDeliverable}
-                      disabled={savingDeliverable}
-                    >
-                      {savingDeliverable ? "保存中" : "納品物を保存"}
-                    </button>
-                  </div>
-
-                  <div className="portfolioBox">
-                    <span>ポートフォリオ表示プレビュー</span>
-
-                    <div className="portfolioPreviewCard">
-                      <strong>{publicTitle || order.store_name || order.title}</strong>
-                      <p>
-                        {deliverableTags.length > 0
-                          ? deliverableTags.join(" / ")
-                          : "タグ未選択"}
-                      </p>
-                      <small>
-                        {publicComment || "公開用コメントがここに入ります。"}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="deliverableList">
-                  <h3>登録済み納品物</h3>
-
-                  {deliverables.length === 0 ? (
-                    <p className="emptyDeliverable">
-                      まだ納品物は登録されていません。
-                    </p>
-                  ) : (
-                    <div className="deliverableCards">
-                      {deliverables.map((item) => (
-                        <article key={item.id} className="deliverableCard">
-                          <div>
-                            <strong>
-                              {item.public_title || item.file_name || "納品物"}
-                            </strong>
-
-                            <p>{item.public_comment || "コメントなし"}</p>
-
-                            <div className="miniTags">
-                              {(item.tags || []).map((tag) => (
-                                <span key={tag}>{tag}</span>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="deliverableActions">
-                            {item.is_public && (
-                              <span className="publicBadge">WEB掲載</span>
-                            )}
-
-                            <a
-                              href={item.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              開く
-                            </a>
-
-                            <button
-                              type="button"
-                              className="deleteDeliverableBtn"
-                              onClick={() => deleteDeliverable(item)}
-                              disabled={deletingDeliverableId === item.id}
-                            >
-                              {deletingDeliverableId === item.id ? "削除中" : "削除"}
-                            </button>
-                          </div>
-                        </article>
-                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setDeliverableFile(null)}
+                        aria-label="ファイルを外す"
+                      >
+                        ×
+                      </button>
                     </div>
                   )}
                 </div>
+
+                <div className="workForm">
+                  <div className="tagList">
+                    {TAG_OPTIONS.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={
+                          deliverableTags.includes(tag) ? "tag active" : "tag"
+                        }
+                        onClick={() => toggleDeliverableTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    className="titleInput"
+                    value={publicTitle}
+                    onChange={(e) => setPublicTitle(e.target.value)}
+                    placeholder="公開タイトル（未入力なら店舗名・案件名）"
+                  />
+
+                  <textarea
+                    className="commentInput"
+                    value={publicComment}
+                    onChange={(e) => setPublicComment(e.target.value)}
+                    placeholder="公開コメント"
+                  />
+
+                  <input
+                    className="hashInput"
+                    value={hashTagText}
+                    onChange={(e) => setHashTagText(e.target.value)}
+                    placeholder="ハッシュタグ 例：金沢 求人 夏 イベント"
+                  />
+
+                  <label className="publicCheck">
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                    />
+                    WEBサイトの制作実績に掲載する
+                  </label>
+
+                  <div className="previewCard">
+                    <span>ポートフォリオ表示プレビュー</span>
+                    <strong>
+                      {publicTitle || order.store_name || order.title || "制作事例"}
+                    </strong>
+                    <small>
+                      {allPreviewTags.length > 0
+                        ? allPreviewTags.map((tag) => `#${tag}`).join(" ")
+                        : "タグ未選択"}
+                    </small>
+                    <p>{publicComment || "公開用コメントがここに入ります。"}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="saveWorkBtn"
+                    onClick={saveDeliverable}
+                    disabled={savingDeliverable}
+                  >
+                    {savingDeliverable ? "アップロード中..." : "制作事例をアップロード"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="deliverableList">
+                <h3>登録済み納品物</h3>
+
+                {deliverables.length === 0 ? (
+                  <p className="emptyDeliverable">まだ納品物は登録されていません。</p>
+                ) : (
+                  <div className="deliverableCards">
+                    {deliverables.map((item) => (
+                      <article key={item.id} className="deliverableCard">
+                        <div>
+                          <strong>{item.public_title || item.file_name || "納品物"}</strong>
+                          <p>{item.public_comment || "コメントなし"}</p>
+
+                          <div className="miniTags">
+                            {(item.tags || []).map((tag) => (
+                              <span key={tag}>#{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="deliverableActions">
+                          {item.is_public && <span className="publicBadge">WEB掲載</span>}
+
+                          <a href={item.file_url} target="_blank" rel="noopener noreferrer">
+                            開く
+                          </a>
+
+                          <button
+                            type="button"
+                            className="deleteDeliverableBtn"
+                            onClick={() => deleteDeliverable(item)}
+                            disabled={deletingDeliverableId === item.id}
+                          >
+                            {deletingDeliverableId === item.id ? "削除中" : "削除"}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="orderHint">
                 <strong>オーダーID：{order.display_id || "未採番"}</strong>
                 <br />
-                公式LINEでこの案件を呼び出す場合は、
-                #から始まるオーダーIDを入力してください。
+                公式LINEでこの案件を呼び出す場合は、#から始まるオーダーIDを入力してください。
               </div>
             </section>
 
@@ -1466,6 +1535,7 @@ const deleteDeliverable = async (item: Deliverable) => {
           display: flex;
           flex-direction: column;
           box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+          margin-bottom: 56px;
         }
 
         .chatHeader {
@@ -1474,10 +1544,8 @@ const deleteDeliverable = async (item: Deliverable) => {
           color: #ffffff;
           display: flex;
           align-items: center;
-          justify-content: space-between;
           padding: 0 34px;
           box-sizing: border-box;
-          gap: 20px;
         }
 
         .titleBlock {
@@ -1502,12 +1570,6 @@ const deleteDeliverable = async (item: Deliverable) => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-        }
-
-        .creatorName {
-          flex-shrink: 0;
-          font-weight: 900;
-          font-size: 18px;
         }
 
         .messagesBox {
@@ -1719,10 +1781,6 @@ const deleteDeliverable = async (item: Deliverable) => {
           box-sizing: border-box;
         }
 
-        .messageInput::placeholder {
-          color: #7b8088;
-        }
-
         .sendBtn {
           width: 50px;
           height: 50px;
@@ -1734,233 +1792,220 @@ const deleteDeliverable = async (item: Deliverable) => {
           justify-content: center;
           cursor: pointer;
           flex-shrink: 0;
-          box-shadow: 0 10px 24px rgba(6, 199, 85, 0.28);
         }
 
         .sendBtn:disabled {
           background: #94a3b8;
           cursor: default;
-          box-shadow: none;
           opacity: 0.7;
         }
 
-        .metaPanel {
-          width: 82%;
-          margin: 70px auto 0;
+        .workPanel {
+          width: 90%;
+          margin: 0 auto;
         }
 
-        .storeLine {
+        .workTop {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 24px;
+          margin-bottom: 14px;
+        }
+
+        .storeNameBlock {
           display: flex;
           align-items: baseline;
-          gap: 18px;
-          margin-bottom: 18px;
-          color: #111827;
+          gap: 16px;
         }
 
-        .storeLine span {
+        .storeNameBlock span {
           font-size: 15px;
-          font-weight: 900;
-        }
-
-        .storeLine strong {
-          font-size: 28px;
-          line-height: 1.2;
-        }
-
-        .metaControls {
-          min-height: 46px;
-          border-radius: 999px;
-          border: 1px solid rgba(17, 24, 39, 0.36);
-          display: grid;
-          grid-template-columns: 250px 130px 1fr 1fr 76px;
-          align-items: center;
-          overflow: hidden;
-          background: rgba(255, 255, 255, 0.55);
-          margin-bottom: 12px;
-        }
-
-        .metaField {
-          height: 100%;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 0 14px;
-          border-left: 1px solid rgba(17, 24, 39, 0.24);
-          box-sizing: border-box;
-        }
-
-        .designerField {
-          border-left: none;
-        }
-
-        .metaField span {
-          font-size: 14px;
-          font-weight: 900;
-          white-space: nowrap;
-          color: #374151;
-        }
-
-        .metaField select,
-        .metaField input {
-          min-width: 0;
-          width: 100%;
-          height: 30px;
-          border-radius: 10px;
-          border: 1px solid rgba(17, 24, 39, 0.25);
-          background: #ffffff;
-          padding: 0 10px;
-          font-weight: 800;
-          color: #374151;
-          box-sizing: border-box;
-        }
-
-        .statusPill {
-          height: 30px;
-          border-radius: 999px;
-          border: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
           font-weight: 950;
-          margin: 0 12px;
+        }
+
+        .storeNameBlock strong {
+          font-size: 28px;
+          font-weight: 950;
+        }
+
+        .largeStatusBtn {
+          min-width: 180px;
+          height: 54px;
+          border: none;
+          border-radius: 999px;
+          font-size: 18px;
+          font-weight: 950;
           cursor: pointer;
         }
 
+        .metaBox {
+          border: 1.5px solid #777;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.55);
+          padding: 34px 38px;
+          margin-bottom: 42px;
+          display: grid;
+          gap: 20px;
+        }
+
+        .metaGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 26px 40px;
+        }
+
+        .metaItem {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          align-items: center;
+          gap: 16px;
+          min-width: 0;
+        }
+
+        .metaItem span {
+          font-weight: 950;
+          font-size: 16px;
+          white-space: nowrap;
+        }
+
+        .metaItem select,
+        .metaItem input {
+          width: 100%;
+          height: 48px;
+          border: 1.5px solid #999;
+          border-radius: 999px;
+          background: #ffffff;
+          padding: 0 22px;
+          font-size: 16px;
+          font-weight: 900;
+          color: #263241;
+          box-sizing: border-box;
+        }
+
         .saveMetaBtn {
-          height: 30px;
-          margin-right: 12px;
+          justify-self: end;
+          width: 140px;
+          height: 40px;
           border: none;
           border-radius: 999px;
           background: #111827;
           color: #ffffff;
-          font-size: 12px;
-          font-weight: 900;
+          font-size: 13px;
+          font-weight: 950;
           cursor: pointer;
-        }
-
-        .saveMetaBtn:disabled {
-          background: #94a3b8;
-          cursor: default;
         }
 
         .saveMessage {
           color: #16a34a;
-          font-size: 12px;
-          font-weight: 900;
-          margin: 0 0 18px 10px;
-        }
-
-        .deliverableArea {
-          margin-top: 28px;
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 26px;
-          padding: 24px;
-          box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
-        }
-
-        .deliverableHead {
-          display: flex;
-          justify-content: space-between;
-          gap: 20px;
-          align-items: flex-end;
-          margin-bottom: 20px;
-        }
-
-        .deliverableHead p {
-          margin: 0 0 4px;
-          font-size: 11px;
+          font-size: 13px;
           font-weight: 950;
-          letter-spacing: 0.14em;
-          color: #64748b;
+          margin: -26px 0 24px 4px;
         }
 
-        .deliverableHead h2 {
-          margin: 0;
-          font-size: 24px;
-          line-height: 1.2;
+        .uploadBox {
+          background: #ffffff;
+          border: 1.5px solid #777;
+          border-radius: 22px;
+          padding: 34px 48px 38px;
+          margin-bottom: 26px;
         }
 
-        .deliverableHead span {
-          color: #64748b;
-          font-size: 12px;
-          font-weight: 800;
-          text-align: right;
-        }
-
-        .deliverableGrid {
-          display: grid;
-          grid-template-columns: 280px 1fr;
-          gap: 22px;
-          align-items: stretch;
-        }
-
-        .deliverableForm {
-          display: grid;
-          gap: 14px;
-        }
-
-        .deliverableUpload {
-          min-height: 92px;
-          background: #858e98;
-          color: #ffffff;
-          border-radius: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-direction: column;
-          gap: 6px;
-          cursor: pointer;
-          text-align: center;
-          padding: 14px;
+        .dropArea {
+          width: min(640px, 100%);
+          margin: 0 auto 28px;
+          border: 2px dashed #d8d0ff;
+          border-radius: 24px;
+          background: #fbfaff;
+          padding: 34px 26px 18px;
           box-sizing: border-box;
+          text-align: center;
         }
 
-        .deliverableUpload input {
+        .dropArea.isDragOver {
+          background: #f1efff;
+          border-color: #7c6bff;
+        }
+
+        .dropLabel {
+          cursor: pointer;
+          display: grid;
+          gap: 8px;
+          justify-items: center;
+        }
+
+        .dropLabel input {
           display: none;
         }
 
-        .deliverableUpload strong {
-          font-size: 17px;
+        .dropIcon {
+          font-size: 46px;
+          color: #7c6bff;
+        }
+
+        .dropLabel strong {
+          font-size: 22px;
+          line-height: 1.25;
+          font-weight: 950;
+          color: #2f2f44;
+        }
+
+        .dropLabel span {
+          font-size: 13px;
+          color: #6b7280;
+          font-weight: 800;
+        }
+
+        .selectedFile {
+          margin-top: 20px;
+          display: grid;
+          grid-template-columns: 70px 1fr 40px;
+          align-items: center;
+          gap: 14px;
+          text-align: left;
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 10px 12px;
+        }
+
+        .selectedFile img,
+        .fileIcon {
+          width: 70px;
+          height: 48px;
+          object-fit: cover;
+          border-radius: 10px;
+          background: #e5e7eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
           font-weight: 950;
         }
 
-        .deliverableUpload span {
-          font-size: 11px;
-          opacity: 0.86;
+        .selectedFile strong {
+          display: block;
+          font-size: 14px;
+          color: #374151;
           word-break: break-all;
         }
 
-        .deliverableField {
+        .selectedFile small {
+          color: #9ca3af;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .selectedFile button {
+          border: none;
+          background: transparent;
+          color: #fb7185;
+          font-size: 32px;
+          cursor: pointer;
+        }
+
+        .workForm {
           display: grid;
-          gap: 8px;
-        }
-
-        .deliverableField label {
-          font-size: 12px;
-          font-weight: 950;
-          color: #374151;
-        }
-
-        .deliverableField input,
-        .deliverableField textarea {
-          width: 100%;
-          border-radius: 14px;
-          border: 1px solid #d1d5db;
-          background: #ffffff;
-          padding: 10px 12px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #374151;
-          box-sizing: border-box;
-          font-family: inherit;
-        }
-
-        .deliverableField textarea {
-          min-height: 86px;
-          resize: vertical;
-          line-height: 1.6;
+          gap: 14px;
         }
 
         .tagList {
@@ -1970,13 +2015,15 @@ const deleteDeliverable = async (item: Deliverable) => {
         }
 
         .tag {
-          border: 1px solid #d1d5db;
+          min-width: 86px;
+          min-height: 30px;
+          border: 1px solid #cbd5e1;
           border-radius: 999px;
           background: #ffffff;
-          color: #374151;
-          padding: 7px 10px;
+          color: #334155;
+          padding: 7px 12px;
           font-size: 11px;
-          font-weight: 900;
+          font-weight: 950;
           cursor: pointer;
         }
 
@@ -1986,77 +2033,79 @@ const deleteDeliverable = async (item: Deliverable) => {
           color: #ffffff;
         }
 
-        .publicToggle {
+        .titleInput,
+        .hashInput,
+        .commentInput {
+          width: 100%;
+          border-radius: 14px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          padding: 12px 14px;
+          font-size: 13px;
+          font-weight: 800;
+          color: #374151;
+          box-sizing: border-box;
+          font-family: inherit;
+        }
+
+        .commentInput {
+          min-height: 82px;
+          resize: vertical;
+          line-height: 1.6;
+        }
+
+        .publicCheck {
           display: flex;
           align-items: center;
           gap: 8px;
           font-size: 12px;
-          font-weight: 900;
+          font-weight: 950;
           color: #374151;
         }
 
-        .saveDeliverableBtn {
+        .previewCard {
+          border-radius: 18px;
+          background: #8b949d;
+          color: rgba(255, 255, 255, 0.92);
+          padding: 18px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .previewCard > span {
+          font-size: 12px;
+          font-weight: 950;
+          opacity: 0.75;
+        }
+
+        .previewCard strong {
+          font-size: 18px;
+        }
+
+        .previewCard small,
+        .previewCard p {
+          margin: 0;
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .saveWorkBtn {
+          width: min(760px, 100%);
+          justify-self: center;
+          height: 56px;
           border: none;
           border-radius: 999px;
-          background: #3b82f6;
+          background: #1847ff;
           color: #ffffff;
-          font-size: 13px;
+          font-size: 18px;
           font-weight: 950;
-          padding: 12px 16px;
           cursor: pointer;
+          margin-top: 8px;
         }
 
-        .saveDeliverableBtn:disabled {
+        .saveWorkBtn:disabled {
           background: #94a3b8;
           cursor: default;
-        }
-
-        .portfolioBox {
-          min-height: 240px;
-          background: #858e98;
-          color: rgba(255, 255, 255, 0.62);
-          border-radius: 22px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-direction: column;
-          gap: 18px;
-          padding: 24px;
-          text-align: center;
-          box-sizing: border-box;
-        }
-
-        .portfolioBox > span {
-          font-size: 18px;
-          font-weight: 950;
-        }
-
-        .portfolioPreviewCard {
-          width: min(420px, 100%);
-          background: rgba(255, 255, 255, 0.16);
-          border: 1px solid rgba(255, 255, 255, 0.22);
-          border-radius: 18px;
-          color: #ffffff;
-          padding: 18px;
-          box-sizing: border-box;
-          text-align: left;
-        }
-
-        .portfolioPreviewCard strong {
-          display: block;
-          font-size: 18px;
-          margin-bottom: 8px;
-        }
-
-        .portfolioPreviewCard p {
-          margin: 0 0 10px;
-          font-size: 12px;
-          opacity: 0.9;
-        }
-
-        .portfolioPreviewCard small {
-          line-height: 1.7;
-          opacity: 0.86;
         }
 
         .deliverableList {
@@ -2185,7 +2234,7 @@ const deleteDeliverable = async (item: Deliverable) => {
 
         button:hover,
         .imageAddBtn:hover,
-        .deliverableUpload:hover {
+        .dropLabel:hover {
           opacity: 0.96;
           transform: translateY(-1px);
           transition: 0.2s ease;
@@ -2197,25 +2246,6 @@ const deleteDeliverable = async (item: Deliverable) => {
             background: #f3f6fa;
             min-height: 100dvh;
           }
-
-          .shell {
-            height: auto;
-            display: flex;
-            flex-direction: column;
-          }
-
-          .topBar {
-            margin-bottom: 8px;
-            flex-shrink: 0;
-          }
-
-          .backBtn {
-            padding: 8px 14px;
-            font-size: 14px;
-            background: #ffffff;
-          }
-
-         
 
           .chatCard {
             height: 76dvh;
@@ -2240,44 +2270,16 @@ const deleteDeliverable = async (item: Deliverable) => {
             font-size: 16px;
           }
 
-          .creatorName {
-            display: none;
-          }
-
           .messagesBox {
             padding: 18px 14px;
-          }
-
-          .emptyMessage {
-            min-height: 0;
-            font-size: 17px;
-            line-height: 1.75;
           }
 
           .messageWrap {
             max-width: 86%;
           }
 
-          .messageMeta {
-            font-size: 10px;
-          }
-
           .bubble {
             font-size: 14px;
-          }
-
-          .typingArea {
-            padding: 0 16px;
-          }
-
-          .previewDock {
-            padding: 8px 16px 0;
-          }
-
-          .previewItem {
-            width: 74px;
-            height: 74px;
-            border-radius: 16px;
           }
 
           .inputBar {
@@ -2288,7 +2290,6 @@ const deleteDeliverable = async (item: Deliverable) => {
           }
 
           .imageAddBtn {
-            width: auto;
             height: 40px;
             padding: 0 14px;
             font-size: 10px;
@@ -2306,71 +2307,81 @@ const deleteDeliverable = async (item: Deliverable) => {
             height: 48px;
           }
 
-          .metaPanel {
+          .workPanel {
             width: 100%;
-            margin: 28px auto 0;
+          }
+
+          .workTop {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .storeNameBlock {
             display: block;
           }
 
-          .storeLine {
+          .storeNameBlock strong {
             display: block;
-          }
-
-          .storeLine span {
-            display: block;
-            margin-bottom: 6px;
-          }
-
-          .storeLine strong {
             font-size: 22px;
+            margin-top: 4px;
           }
 
-          .metaControls {
-            border-radius: 22px;
-            grid-template-columns: 1fr;
-            padding: 14px;
-            gap: 10px;
-            overflow: visible;
-          }
-
-          .metaField {
-            border-left: none;
-            padding: 0;
-            display: grid;
-          }
-
-          .statusPill {
-            margin: 0;
+          .largeStatusBtn {
             width: 100%;
+          }
+
+          .metaBox {
+            padding: 18px;
+            border-radius: 18px;
+            margin-bottom: 24px;
+          }
+
+          .metaGrid {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+
+          .metaItem {
+            grid-template-columns: 1fr;
+            gap: 6px;
+          }
+
+          .metaItem select,
+          .metaItem input {
+            height: 42px;
+            font-size: 13px;
           }
 
           .saveMetaBtn {
-            margin: 0;
             width: 100%;
-            height: 36px;
           }
 
-          .deliverableArea {
+          .uploadBox {
             padding: 18px;
-            border-radius: 22px;
+            border-radius: 18px;
           }
 
-          .deliverableHead {
-            display: block;
+          .dropArea {
+            padding: 20px 14px 14px;
           }
 
-          .deliverableHead span {
-            display: block;
-            text-align: left;
-            margin-top: 8px;
+          .dropLabel strong {
+            font-size: 16px;
           }
 
-          .deliverableGrid {
-            grid-template-columns: 1fr;
+          .selectedFile {
+            grid-template-columns: 56px 1fr 32px;
           }
 
-          .portfolioBox {
-            min-height: 200px;
+          .selectedFile img,
+          .fileIcon {
+            width: 56px;
+            height: 42px;
+          }
+
+          .saveWorkBtn {
+            height: 48px;
+            font-size: 15px;
           }
 
           .deliverableCard {
@@ -2381,19 +2392,7 @@ const deleteDeliverable = async (item: Deliverable) => {
             margin-top: 12px;
             flex-wrap: wrap;
           }
-
-          .errorBox {
-            margin-top: 14px;
-          }
         }
-
-        @media (max-width: 768px) {
-  .metaPanel,
-  .orderHint,
-  .errorBox {
-    display: none !important;
-  }
-}
       `}</style>
     </div>
   );
