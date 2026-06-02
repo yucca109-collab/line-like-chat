@@ -395,76 +395,97 @@ export default function OrderDetailPage() {
   
   
   
-  
-  
-  const saveDeliverable = async () => {
-    if (!order) return;
+const saveDeliverable = async () => {
+  if (!order) return;
 
-    if (!deliverableFile) {
-      setErr("納品物ファイルを選択してください");
-      return;
+  if (!deliverableFile) {
+    setErr("納品物ファイルを選択してください");
+    return;
+  }
+
+  setErr("");
+  setSaveMessage("");
+  setSavingDeliverable(true);
+
+  try {
+    const uploadFile = await compressImage(deliverableFile);
+
+    const fileExt = uploadFile.name.split(".").pop() || "file";
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${fileExt}`;
+
+    const filePath = `${order.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("deliverables")
+      .upload(filePath, uploadFile);
+
+    if (uploadError) {
+      throw new Error(`納品物アップロード失敗: ${uploadError.message}`);
     }
 
-    setErr("");
-    setSaveMessage("");
-    setSavingDeliverable(true);
+    const { data: publicUrlData } = supabase.storage
+      .from("deliverables")
+      .getPublicUrl(filePath);
 
-    try {
-      const uploadFile = await compressImage(deliverableFile);
+    const { data, error } = await supabase
+      .from("order_deliverables")
+      .insert({
+        order_id: order.id,
+        file_url: publicUrlData.publicUrl,
+        file_name: uploadFile.name,
+        file_type: uploadFile.type || null,
+        tags: deliverableTags,
+        public_title: publicTitle || null,
+        public_comment: publicComment || null,
+        is_public: isPublic,
+      })
+      .select(
+        "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+      )
+      .single();
 
-      const fileExt = uploadFile.name.split(".").pop() || "file";
-      const fileName = `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2)}.${fileExt}`;
-
-      const filePath = `${order.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("deliverables")
-        .upload(filePath, uploadFile);
-
-      if (uploadError) {
-        throw new Error(`納品物アップロード失敗: ${uploadError.message}`);
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from("deliverables")
-        .getPublicUrl(filePath);
-
-      const { data, error } = await supabase
-        .from("order_deliverables")
-        .insert({
-          order_id: order.id,
-          file_url: publicUrlData.publicUrl,
-          file_name: uploadFile.name,
-          file_type: uploadFile.type || null,
-          tags: deliverableTags,
-          public_title: publicTitle || null,
-          public_comment: publicComment || null,
-          is_public: isPublic,
-        })
-        .select(
-          "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
-        )
-        .single();
-
-      if (error) {
-        throw new Error(`納品物登録失敗: ${error.message}`);
-      }
-
-      setDeliverables((prev) => [data as Deliverable, ...prev]);
-      setDeliverableFile(null);
-      setDeliverableTags([]);
-      setPublicTitle("");
-      setPublicComment("");
-      setIsPublic(false);
-      setSaveMessage("納品物を保存しました");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "納品物の保存に失敗しました");
-    } finally {
-      setSavingDeliverable(false);
+    if (error) {
+      throw new Error(`納品物登録失敗: ${error.message}`);
     }
-  };
+
+    if (isPublic) {
+      const { error: worksError } = await supabase.from("works").insert({
+        source_order_id: order.id,
+        file_url: publicUrlData.publicUrl,
+        file_name: uploadFile.name,
+        file_type: uploadFile.type || null,
+        tags: deliverableTags,
+        public_title: publicTitle || null,
+        public_comment: publicComment || null,
+        store_name: order.store_name || null,
+        order_title: order.title || null,
+      });
+
+      if (worksError) {
+        throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
+      }
+    }
+
+    setDeliverables((prev) => [data as Deliverable, ...prev]);
+    setDeliverableFile(null);
+    setDeliverableTags([]);
+    setPublicTitle("");
+    setPublicComment("");
+    setIsPublic(false);
+
+    setSaveMessage(
+      isPublic
+        ? "納品物を保存し、制作事例にも追加しました"
+        : "納品物を保存しました"
+    );
+  } catch (e) {
+    setErr(e instanceof Error ? e.message : "納品物の保存に失敗しました");
+  } finally {
+    setSavingDeliverable(false);
+  }
+};
 
 const deleteDeliverable = async (item: Deliverable) => {
   const ok = confirm(
