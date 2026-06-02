@@ -121,17 +121,9 @@ const getNextStatus = (current: DisplayStatus): DisplayStatus => {
 };
 
 const getStatusColor = (displayStatus: DisplayStatus) => {
-  if (displayStatus === "新規") {
-    return { bg: "#f59e0b", text: "#ffffff" };
-  }
-
-  if (displayStatus === "納品済み") {
-    return { bg: "#0d83ff", text: "#ffffff" };
-  }
-
-  if (displayStatus === "アーカイブ") {
-    return { bg: "#6b7280", text: "#ffffff" };
-  }
+  if (displayStatus === "新規") return { bg: "#f59e0b", text: "#ffffff" };
+  if (displayStatus === "納品済み") return { bg: "#0d83ff", text: "#ffffff" };
+  if (displayStatus === "アーカイブ") return { bg: "#6b7280", text: "#ffffff" };
 
   return { bg: "#3b82f6", text: "#ffffff" };
 };
@@ -175,9 +167,7 @@ export default function OrderDetailPage() {
   const [deliverableFile, setDeliverableFile] = useState<File | null>(null);
   const [deliverableTags, setDeliverableTags] = useState<string[]>([]);
   const [hashTagText, setHashTagText] = useState("");
-  const [publicTitle, setPublicTitle] = useState("");
   const [publicComment, setPublicComment] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const previewUrls = useMemo(() => {
@@ -342,7 +332,7 @@ export default function OrderDetailPage() {
     setSavingDelivery(false);
 
     if (error) {
-      setErr(`納品情報の保存に失敗しました: ${error.message}`);
+      setErr(`案件メタ情報の保存に失敗しました: ${error.message}`);
       return;
     }
 
@@ -444,7 +434,7 @@ export default function OrderDetailPage() {
 
       const filePath = `${order.id}/${fileName}`;
       const allTags = getAllWorkTags();
-      const titleForSave = publicTitle || order.store_name || order.title || "制作事例";
+      const titleForSave = order.store_name || order.title || "制作事例";
 
       const { error: uploadError } = await supabase.storage
         .from("deliverables")
@@ -468,7 +458,7 @@ export default function OrderDetailPage() {
           tags: allTags,
           public_title: titleForSave,
           public_comment: publicComment || null,
-          is_public: isPublic,
+          is_public: true,
         })
         .select(
           "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
@@ -479,37 +469,29 @@ export default function OrderDetailPage() {
         throw new Error(`納品物登録失敗: ${error.message}`);
       }
 
-      if (isPublic) {
-        const { error: worksError } = await supabase.from("works").insert({
-          source_order_id: order.id,
-          file_url: publicUrlData.publicUrl,
-          file_name: uploadFile.name,
-          file_type: uploadFile.type || null,
-          tags: allTags,
-          public_title: titleForSave,
-          public_comment: publicComment || null,
-          store_name: order.store_name || null,
-          order_title: order.title || null,
-        });
+      const { error: worksError } = await supabase.from("works").insert({
+        source_order_id: order.id,
+        file_url: publicUrlData.publicUrl,
+        file_name: uploadFile.name,
+        file_type: uploadFile.type || null,
+        tags: allTags,
+        public_title: titleForSave,
+        public_comment: publicComment || null,
+        store_name: order.store_name || null,
+        order_title: order.title || null,
+      });
 
-        if (worksError) {
-          throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
-        }
+      if (worksError) {
+        throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
       }
 
       setDeliverables((prev) => [data as Deliverable, ...prev]);
       setDeliverableFile(null);
       setDeliverableTags([]);
       setHashTagText("");
-      setPublicTitle("");
       setPublicComment("");
-      setIsPublic(true);
 
-      setSaveMessage(
-        isPublic
-          ? "納品物を保存し、制作事例にも追加しました"
-          : "納品物を保存しました"
-      );
+      setSaveMessage("制作事例をアップロードしました");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "制作事例の保存に失敗しました");
     } finally {
@@ -988,7 +970,6 @@ export default function OrderDetailPage() {
   const currentStatus = getDisplayStatus(order?.status ?? "");
   const statusStyle = getStatusColor(currentStatus);
   const hasSendContent = input.trim().length > 0 || files.length > 0;
-  const allPreviewTags = getAllWorkTags();
 
   return (
     <div className="page">
@@ -1330,8 +1311,8 @@ export default function OrderDetailPage() {
                     />
 
                     <div className="dropIcon">☁</div>
-                    <strong>Drag & drop images, videos, or any file</strong>
-                    <span>or browse files on your computer</span>
+                    <strong>ここに画像・動画・ファイルをアップロード</strong>
+                    <span>クリックしてファイルを選択できます</span>
                   </label>
 
                   {deliverableFile && (
@@ -1374,13 +1355,6 @@ export default function OrderDetailPage() {
                     ))}
                   </div>
 
-                  <input
-                    className="titleInput"
-                    value={publicTitle}
-                    onChange={(e) => setPublicTitle(e.target.value)}
-                    placeholder="公開タイトル（未入力なら店舗名・案件名）"
-                  />
-
                   <textarea
                     className="commentInput"
                     value={publicComment}
@@ -1394,28 +1368,6 @@ export default function OrderDetailPage() {
                     onChange={(e) => setHashTagText(e.target.value)}
                     placeholder="ハッシュタグ 例：金沢 求人 夏 イベント"
                   />
-
-                  <label className="publicCheck">
-                    <input
-                      type="checkbox"
-                      checked={isPublic}
-                      onChange={(e) => setIsPublic(e.target.checked)}
-                    />
-                    WEBサイトの制作実績に掲載する
-                  </label>
-
-                  <div className="previewCard">
-                    <span>ポートフォリオ表示プレビュー</span>
-                    <strong>
-                      {publicTitle || order.store_name || order.title || "制作事例"}
-                    </strong>
-                    <small>
-                      {allPreviewTags.length > 0
-                        ? allPreviewTags.map((tag) => `#${tag}`).join(" ")
-                        : "タグ未選択"}
-                    </small>
-                    <p>{publicComment || "公開用コメントがここに入ります。"}</p>
-                  </div>
 
                   <button
                     type="button"
@@ -1489,6 +1441,7 @@ export default function OrderDetailPage() {
           color: #111827;
           padding: 46px 20px 60px;
           box-sizing: border-box;
+          touch-action: manipulation;
         }
 
         .shell {
@@ -1652,7 +1605,7 @@ export default function OrderDetailPage() {
 
         .sentImage {
           width: 100%;
-          max-width: 280px;
+          max-width: 360px;
           height: auto;
           border-radius: 14px;
           margin-top: 10px;
@@ -1772,7 +1725,7 @@ export default function OrderDetailPage() {
           outline: none;
           background: transparent;
           color: #475569;
-          font-size: 15px;
+          font-size: 16px;
           font-weight: 700;
           resize: none;
           line-height: 1.5;
@@ -1912,12 +1865,12 @@ export default function OrderDetailPage() {
         }
 
         .dropArea {
-          width: min(640px, 100%);
+          width: 100%;
           margin: 0 auto 28px;
           border: 2px dashed #d8d0ff;
           border-radius: 24px;
           background: #fbfaff;
-          padding: 34px 26px 18px;
+          padding: 38px 34px 22px;
           box-sizing: border-box;
           text-align: center;
         }
@@ -2033,7 +1986,6 @@ export default function OrderDetailPage() {
           color: #ffffff;
         }
 
-        .titleInput,
         .hashInput,
         .commentInput {
           width: 100%;
@@ -2041,7 +1993,7 @@ export default function OrderDetailPage() {
           border: 1px solid #d1d5db;
           background: #ffffff;
           padding: 12px 14px;
-          font-size: 13px;
+          font-size: 16px;
           font-weight: 800;
           color: #374151;
           box-sizing: border-box;
@@ -2051,41 +2003,6 @@ export default function OrderDetailPage() {
         .commentInput {
           min-height: 82px;
           resize: vertical;
-          line-height: 1.6;
-        }
-
-        .publicCheck {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 12px;
-          font-weight: 950;
-          color: #374151;
-        }
-
-        .previewCard {
-          border-radius: 18px;
-          background: #8b949d;
-          color: rgba(255, 255, 255, 0.92);
-          padding: 18px;
-          display: grid;
-          gap: 8px;
-        }
-
-        .previewCard > span {
-          font-size: 12px;
-          font-weight: 950;
-          opacity: 0.75;
-        }
-
-        .previewCard strong {
-          font-size: 18px;
-        }
-
-        .previewCard small,
-        .previewCard p {
-          margin: 0;
-          font-size: 12px;
           line-height: 1.6;
         }
 
@@ -2242,24 +2159,47 @@ export default function OrderDetailPage() {
 
         @media (max-width: 768px) {
           .page {
-            padding: 14px;
-            background: #f3f6fa;
+            padding: 10px;
+            background: #465361;
             min-height: 100dvh;
+            overflow-x: hidden;
+          }
+
+          .shell {
+            width: 100%;
+            max-width: none;
+          }
+
+          .topBar {
+            margin-bottom: 8px;
+          }
+
+          .backBtn {
+            padding: 8px 14px;
+            font-size: 13px;
+          }
+
+          .loginName {
+            font-size: 12px;
+            color: #ffffff;
           }
 
           .chatCard {
-            height: 76dvh;
-            min-height: 560px;
-            border-radius: 22px;
+            width: 100%;
+            height: calc(100dvh - 72px);
+            min-height: 0;
+            border-radius: 18px;
+            margin-bottom: 0;
+            box-shadow: none;
           }
 
           .chatHeader {
-            height: 62px;
-            padding: 0 18px;
+            height: 58px;
+            padding: 0 16px;
           }
 
           .titleBlock {
-            gap: 12px;
+            gap: 10px;
           }
 
           .titleLabel {
@@ -2271,19 +2211,53 @@ export default function OrderDetailPage() {
           }
 
           .messagesBox {
-            padding: 18px 14px;
+            padding: 16px 10px;
+          }
+
+          .emptyMessage {
+            min-height: 0;
+            font-size: 16px;
+            line-height: 1.7;
           }
 
           .messageWrap {
-            max-width: 86%;
+            max-width: 94%;
+          }
+
+          .messageMeta {
+            font-size: 10px;
           }
 
           .bubble {
             font-size: 14px;
           }
 
+          .sentImage {
+            max-width: 100%;
+            width: 100%;
+            border-radius: 14px;
+          }
+
+          .imageGrid {
+            grid-template-columns: 1fr;
+          }
+
+          .groupImage {
+            aspect-ratio: auto;
+            height: auto;
+            max-height: none;
+          }
+
+          .typingArea {
+            padding: 0 16px;
+          }
+
+          .previewDock {
+            padding: 8px 12px 0;
+          }
+
           .inputBar {
-            margin: 10px 12px 16px;
+            margin: 10px 10px 14px;
             min-height: 62px;
             padding: 8px;
             gap: 8px;
@@ -2291,106 +2265,26 @@ export default function OrderDetailPage() {
 
           .imageAddBtn {
             height: 40px;
-            padding: 0 14px;
-            font-size: 10px;
+            padding: 0 12px;
+            font-size: 11px;
           }
 
           .messageInput {
-            font-size: 13px;
+            font-size: 16px;
             min-height: 42px;
             height: 42px;
             padding: 7px 4px;
           }
 
           .sendBtn {
-            width: 48px;
-            height: 48px;
+            width: 46px;
+            height: 46px;
           }
 
-          .workPanel {
-            width: 100%;
-          }
-
-          .workTop {
-            align-items: stretch;
-            flex-direction: column;
-          }
-
-          .storeNameBlock {
-            display: block;
-          }
-
-          .storeNameBlock strong {
-            display: block;
-            font-size: 22px;
-            margin-top: 4px;
-          }
-
-          .largeStatusBtn {
-            width: 100%;
-          }
-
-          .metaBox {
-            padding: 18px;
-            border-radius: 18px;
-            margin-bottom: 24px;
-          }
-
-          .metaGrid {
-            grid-template-columns: 1fr;
-            gap: 14px;
-          }
-
-          .metaItem {
-            grid-template-columns: 1fr;
-            gap: 6px;
-          }
-
-          .metaItem select,
-          .metaItem input {
-            height: 42px;
-            font-size: 13px;
-          }
-
-          .saveMetaBtn {
-            width: 100%;
-          }
-
-          .uploadBox {
-            padding: 18px;
-            border-radius: 18px;
-          }
-
-          .dropArea {
-            padding: 20px 14px 14px;
-          }
-
-          .dropLabel strong {
-            font-size: 16px;
-          }
-
-          .selectedFile {
-            grid-template-columns: 56px 1fr 32px;
-          }
-
-          .selectedFile img,
-          .fileIcon {
-            width: 56px;
-            height: 42px;
-          }
-
-          .saveWorkBtn {
-            height: 48px;
-            font-size: 15px;
-          }
-
-          .deliverableCard {
-            display: block;
-          }
-
-          .deliverableActions {
-            margin-top: 12px;
-            flex-wrap: wrap;
+          .workPanel,
+          .orderHint,
+          .errorBox {
+            display: none !important;
           }
         }
       `}</style>
