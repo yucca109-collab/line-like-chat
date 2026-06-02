@@ -1,564 +1,1287 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
-type OrderRow = {
+type Order = {
   id: string;
   title: string;
   status: string;
-  created_at: string;
   store_name: string | null;
   contact_name: string | null;
-  designer_name: string | null;
   created_by_name: string | null;
+  created_at: string;
   display_id: string | null;
+  designer_name: string | null;
+  final_delivery_date: string | null;
+  delivery_count: number | null;
+  product_name: string | null;
+  invoice_to: string | null;
 };
 
-type MessageRow = {
+type Message = {
   id: string;
   order_id: string;
-  created_at: string;
+  content: string | null;
+  image_url?: string | null;
   sender_name: string;
+  created_at: string;
 };
 
-type OrderReadRow = {
+type Deliverable = {
+  id: string;
   order_id: string;
-  user_name: string;
-  last_read_at: string;
+  file_url: string;
+  file_name: string | null;
+  file_type: string | null;
+  tags: string[] | null;
+  public_title: string | null;
+  public_comment: string | null;
+  is_public: boolean | null;
+  created_at: string;
 };
+
+type TypingRow = {
+  user_name: string;
+  is_typing: boolean;
+  updated_at?: string | null;
+};
+
+type MessageGroup =
+  | {
+      type: "single";
+      message: Message;
+    }
+  | {
+      type: "image-group";
+      sender_name: string;
+      created_at: string;
+      isMe: boolean;
+      images: Message[];
+    };
 
 type DisplayStatus = "新規" | "進行中" | "納品済み" | "アーカイブ";
-type SortMode = "新しい順" | "古い順" | "店舗名順";
-
-type OrderWithMeta = OrderRow & {
-  latest_message_at: string | null;
-  unread: boolean;
-  unread_count: number;
-  display_status: DisplayStatus;
-};
 
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
-export default function OrdersPage() {
+const PRODUCT_OPTIONS = [
+  "",
+  "PCスライド",
+  "SPスライド",
+  "バナー",
+  "フリーバナー",
+  "ランキングロゴ",
+  "グラビア",
+  "GIF画像",
+  "動画",
+  "LP",
+  "WEBサイト",
+  "その他",
+] as const;
+
+const INVOICE_TO_OPTIONS = [
+  "",
+  "〇〇〇〇株式会社",
+  "1Best株式会社",
+  "その他",
+] as const;
+
+const TAG_OPTIONS = [
+  "スマホスライド",
+  "PCスライド",
+  "フリーバナー",
+  "バナー",
+  "ランキングロゴ",
+  "グラビア",
+  "その他",
+  "ガールズヘブン",
+  "GIF画像",
+  "動画",
+];
+
+const getDisplayStatus = (status: string): DisplayStatus => {
+  if (
+    status === "新規" ||
+    status === "進行中" ||
+    status === "納品済み" ||
+    status === "アーカイブ"
+  ) {
+    return status;
+  }
+
+  return "進行中";
+};
+
+const getNextStatus = (current: DisplayStatus): DisplayStatus => {
+  if (current === "新規") return "進行中";
+  if (current === "進行中") return "納品済み";
+  if (current === "納品済み") return "アーカイブ";
+  return "進行中";
+};
+
+const getStatusColor = (displayStatus: DisplayStatus) => {
+  if (displayStatus === "新規") {
+    return { bg: "#f59e0b", text: "#ffffff" };
+  }
+
+  if (displayStatus === "納品済み") {
+    return { bg: "#0d83ff", text: "#ffffff" };
+  }
+
+  if (displayStatus === "アーカイブ") {
+    return { bg: "#6b7280", text: "#ffffff" };
+  }
+
+  return { bg: "#3b82f6", text: "#ffffff" };
+};
+
+export default function OrderDetailPage() {
   const router = useRouter();
+  const params = useParams();
+  const orderId = params?.id as string;
+
+  const messagesBoxRef = useRef<HTMLDivElement | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [savingDelivery, setSavingDelivery] = useState(false);
+  const [savingDeliverable, setSavingDeliverable] = useState(false);
+  const [deletingDeliverableId, setDeletingDeliverableId] = useState<string | null>(null);
+
+  const [err, setErr] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [userName, setUserName] = useState("");
-  const [orders, setOrders] = useState<OrderWithMeta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [input, setInput] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [otherTyping, setOtherTyping] = useState(false);
 
-  const [newTitle, setNewTitle] = useState("");
-  const [newStoreName, setNewStoreName] = useState("");
-  const [newContactName, setNewContactName] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [lastSentIds, setLastSentIds] = useState<string[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
 
-  const [searchKeyword, setSearchKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"すべて" | DisplayStatus>("すべて");
-  const [sortMode, setSortMode] = useState<SortMode>("新しい順");
+  const [draftDeliveryDate, setDraftDeliveryDate] = useState("");
+  const [draftDeliveryCount, setDraftDeliveryCount] = useState(0);
+  const [draftProductName, setDraftProductName] = useState("");
+  const [draftInvoiceTo, setDraftInvoiceTo] = useState("");
 
-  const getDisplayStatus = (status: string): DisplayStatus => {
-    if (
-      status === "新規" ||
-      status === "進行中" ||
-      status === "納品済み" ||
-      status === "アーカイブ"
-    ) {
-      return status;
+  const [deliverableFile, setDeliverableFile] = useState<File | null>(null);
+  const [deliverableTags, setDeliverableTags] = useState<string[]>([]);
+  const [hashTagText, setHashTagText] = useState("");
+  const [publicTitle, setPublicTitle] = useState("");
+  const [publicComment, setPublicComment] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const previewUrls = useMemo(() => {
+    return files.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+  }, [files]);
+
+  const deliverablePreviewUrl = useMemo(() => {
+    if (!deliverableFile || !deliverableFile.type.startsWith("image/")) return "";
+    return URL.createObjectURL(deliverableFile);
+  }, [deliverableFile]);
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, [previewUrls]);
+
+  useEffect(() => {
+    return () => {
+      if (deliverablePreviewUrl) URL.revokeObjectURL(deliverablePreviewUrl);
+    };
+  }, [deliverablePreviewUrl]);
+
+  const syncDeliveryDraft = (targetOrder: Order) => {
+    setDraftDeliveryDate(targetOrder.final_delivery_date || "");
+    setDraftDeliveryCount(targetOrder.delivery_count ?? 0);
+    setDraftProductName(targetOrder.product_name || "");
+    setDraftInvoiceTo(targetOrder.invoice_to || "");
+  };
+
+  const loadDeliverables = async () => {
+    const { data, error } = await supabase
+      .from("order_deliverables")
+      .select(
+        "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+      )
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false });
+
+    if (!error) {
+      setDeliverables((data ?? []) as Deliverable[]);
     }
-    return "進行中";
   };
 
-  const getStatusColor = (displayStatus: DisplayStatus) => {
-    if (displayStatus === "新規") return { bg: "#f59e0b", text: "#fff" };
-    if (displayStatus === "納品済み") return { bg: "#22c55e", text: "#fff" };
-    if (displayStatus === "アーカイブ") return { bg: "#6b7280", text: "#fff" };
-    return { bg: "#3b82f6", text: "#fff" };
-  };
+  const loadAll = async () => {
+    setErr("");
+    setLoading(true);
 
-  const getNextStatus = (current: DisplayStatus): DisplayStatus => {
-    if (current === "新規") return "進行中";
-    if (current === "進行中") return "納品済み";
-    if (current === "納品済み") return "アーカイブ";
-    return "進行中";
-  };
-
-  const formatDate = (value: string | null) => {
-    if (!value) return "まだありません";
-    return new Date(value).toLocaleString("ja-JP");
-  };
-
-  const load = async () => {
     const name = localStorage.getItem("user_name");
+
     if (!name) {
       router.push("/login");
       return;
     }
 
     setUserName(name);
-    setErr("");
-    setLoading(true);
 
-    const { data: orderData, error: orderError } = await supabase
+    const { data: orderData, error: orderErr } = await supabase
       .from("orders")
       .select(
-        "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name,display_id"
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count,product_name,invoice_to"
       )
-      .order("created_at", { ascending: false });
-
-    if (orderError) {
-      setErr(orderError.message);
-      setLoading(false);
-      return;
-    }
-
-    const baseOrders = (orderData ?? []) as OrderRow[];
-
-    if (baseOrders.length === 0) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-
-    const orderIds = baseOrders.map((o) => o.id);
-
-    const { data: messageData, error: messageError } = await supabase
-      .from("messages")
-      .select("id,order_id,created_at,sender_name")
-      .in("order_id", orderIds)
-      .order("created_at", { ascending: false });
-
-    if (messageError) {
-      setErr(messageError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { data: readData, error: readError } = await supabase
-      .from("order_reads")
-      .select("order_id,user_name,last_read_at")
-      .eq("user_name", name)
-      .in("order_id", orderIds);
-
-    if (readError) {
-      setErr(readError.message);
-      setLoading(false);
-      return;
-    }
-
-    const messages = (messageData ?? []) as MessageRow[];
-    const reads = (readData ?? []) as OrderReadRow[];
-
-    const latestMessageMap = new Map<string, MessageRow>();
-    for (const msg of messages) {
-      if (!latestMessageMap.has(msg.order_id)) {
-        latestMessageMap.set(msg.order_id, msg);
-      }
-    }
-
-    const readMap = new Map<string, OrderReadRow>();
-    for (const read of reads) {
-      readMap.set(read.order_id, read);
-    }
-
-    const messageMap = new Map<string, MessageRow[]>();
-    for (const msg of messages) {
-      const list = messageMap.get(msg.order_id) ?? [];
-      list.push(msg);
-      messageMap.set(msg.order_id, list);
-    }
-
-    const merged: OrderWithMeta[] = baseOrders.map((order) => {
-      const latestMessage = latestMessageMap.get(order.id);
-      const readInfo = readMap.get(order.id);
-      const orderMessages = messageMap.get(order.id) ?? [];
-
-      let unreadCount = 0;
-
-      if (!readInfo) {
-        unreadCount = orderMessages.filter((msg) => msg.sender_name !== name).length;
-      } else {
-        unreadCount = orderMessages.filter(
-          (msg) =>
-            msg.sender_name !== name &&
-            new Date(msg.created_at).getTime() >
-              new Date(readInfo.last_read_at).getTime()
-        ).length;
-      }
-
-      return {
-        ...order,
-        latest_message_at: latestMessage?.created_at ?? null,
-        unread: unreadCount > 0,
-        unread_count: unreadCount,
-        display_status: getDisplayStatus(order.status),
-      };
-    });
-
-    setOrders(merged);
-    setLoading(false);
-  };
-
-  const createOrder = async () => {
-    setErr("");
-
-    const params = new URLSearchParams(window.location.search);
-    const urlLineUserId = params.get("line_user_id");
-    const urlLineName = params.get("line_name");
-
-    if (urlLineUserId) localStorage.setItem("line_user_id", urlLineUserId);
-    if (urlLineName) localStorage.setItem("user_name", urlLineName);
-
-    const name = localStorage.getItem("user_name") || urlLineName;
-    const lineUserId = localStorage.getItem("line_user_id") || urlLineUserId;
-
-    if (!name) {
-      router.push("/login");
-      return;
-    }
-
-    const title = newTitle.trim();
-    const storeName = newStoreName.trim();
-    const contactName = newContactName.trim();
-
-    if (!title) {
-      setErr("依頼案件名を入力してください");
-      return;
-    }
-
-    setCreating(true);
-
-    const { data: latestOrder, error: latestError } = await supabase
-      .from("orders")
-      .select("display_id")
-      .not("display_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (latestError) {
-      setCreating(false);
-      setErr(`表示ID取得エラー: ${latestError.message}`);
-      return;
-    }
-
-    let nextNumber = 1001;
-
-    if (latestOrder?.display_id) {
-      const parsed = parseInt(latestOrder.display_id.replace("#", ""), 10);
-      if (!Number.isNaN(parsed)) nextNumber = parsed + 1;
-    }
-
-    const displayId = `#${nextNumber}`;
-
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
-        title,
-        status: "新規",
-        store_name: storeName || null,
-        contact_name: contactName || null,
-        designer_name: null,
-        created_by_name: name,
-        created_by_line_user_id: lineUserId || null,
-        line_user_id: lineUserId || null,
-        display_id: displayId,
-      })
-      .select("id")
+      .eq("id", orderId)
       .single();
 
-    setCreating(false);
-
-    if (error) {
-      setErr(error.message);
+    if (orderErr) {
+      setErr("案件情報の読み込みに失敗しました");
+      setLoading(false);
       return;
     }
 
-    await fetch("/api/line/order-created", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lineUserId,
-        displayId,
-        title,
-        storeName,
-        contactName,
-        orderUrl: `https://app.1best.info/orders/${data.id}`,
-      }),
-    });
+    const loadedOrder = orderData as Order;
 
-    setNewTitle("");
-    setNewStoreName("");
-    setNewContactName("");
+    setOrder(loadedOrder);
+    syncDeliveryDraft(loadedOrder);
 
-    router.push(`/orders/${data.id}`);
-  };
+    const { data: msgData, error: msgErr } = await supabase
+      .from("messages")
+      .select("id,order_id,content,image_url,sender_name,created_at")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: true });
 
-  const updateOrderStatus = async (orderId: string, nextStatus: DisplayStatus) => {
-    setErr("");
-
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: nextStatus })
-      .eq("id", orderId);
-
-    if (error) {
-      setErr(`ステータス更新エラー: ${error.message}`);
-      return;
+    if (msgErr) {
+      setErr("メッセージの読み込みに失敗しました");
+    } else {
+      setMessages((msgData ?? []) as Message[]);
     }
 
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId
-          ? { ...order, status: nextStatus, display_status: nextStatus }
-          : order
-      )
-    );
+    await loadDeliverables();
+
+    setLoading(false);
+    await markAsRead();
   };
 
-  const updateDesignerName = async (orderId: string, nextDesignerName: string) => {
+  const updateDesignerName = async (nextDesignerName: string) => {
+    if (!order) return;
+
     setErr("");
+    setSaveMessage("");
 
     const { error } = await supabase
       .from("orders")
       .update({ designer_name: nextDesignerName || null })
-      .eq("id", orderId);
+      .eq("id", order.id);
 
     if (error) {
       setErr(`担当デザイナー更新エラー: ${error.message}`);
       return;
     }
 
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId
-          ? { ...order, designer_name: nextDesignerName || null }
-          : order
-      )
+    setOrder((prev) =>
+      prev ? { ...prev, designer_name: nextDesignerName || null } : prev
     );
   };
 
-  const logout = () => {
-    localStorage.removeItem("user_name");
-    localStorage.removeItem("line_user_id");
-    router.push("/login");
+  const updateOrderStatus = async () => {
+    if (!order) return;
+
+    setErr("");
+    setSaveMessage("");
+
+    const currentStatus = getDisplayStatus(order.status);
+    const nextStatus = getNextStatus(currentStatus);
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: nextStatus })
+      .eq("id", order.id);
+
+    if (error) {
+      setErr(`ステータス更新エラー: ${error.message}`);
+      return;
+    }
+
+    setOrder((prev) => (prev ? { ...prev, status: nextStatus } : prev));
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlLineUserId = params.get("line_user_id");
-    const urlLineName = params.get("line_name");
+  const saveDeliveryInfo = async () => {
+    if (!order) return;
 
-    if (urlLineUserId) localStorage.setItem("line_user_id", urlLineUserId);
-    if (urlLineName) localStorage.setItem("user_name", urlLineName);
+    setErr("");
+    setSaveMessage("");
+    setSavingDelivery(true);
 
-    const saved = localStorage.getItem("user_name");
+    const { data, error } = await supabase
+      .from("orders")
+      .update({
+        final_delivery_date: draftDeliveryDate || null,
+        delivery_count: draftDeliveryCount,
+        product_name: draftProductName || null,
+        invoice_to: draftInvoiceTo || null,
+      })
+      .eq("id", order.id)
+      .select(
+        "id,title,status,store_name,contact_name,created_by_name,created_at,display_id,designer_name,final_delivery_date,delivery_count,product_name,invoice_to"
+      )
+      .single();
 
-    if (!saved) {
+    setSavingDelivery(false);
+
+    if (error) {
+      setErr(`納品情報の保存に失敗しました: ${error.message}`);
+      return;
+    }
+
+    const updatedOrder = data as Order;
+
+    setOrder(updatedOrder);
+    syncDeliveryDraft(updatedOrder);
+    setSaveMessage("案件メタ情報を保存しました");
+  };
+
+  const toggleDeliverableTag = (tag: string) => {
+    setDeliverableTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+    );
+  };
+
+  const getHashTags = () => {
+    return hashTagText
+      .split(/[\s,、#]+/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  };
+
+  const getAllWorkTags = () => {
+    return [...new Set([...deliverableTags, ...getHashTags()])];
+  };
+
+  const compressImage = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/")) return file;
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        img.src = reader.result as string;
+      };
+
+      img.onerror = reject;
+
+      img.onload = () => {
+        const maxWidth = 1200;
+        const scale = Math.min(1, maxWidth / img.width);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+
+            resolve(
+              new File([blob], file.name.replace(/\.[^/.]+$/, ".webp"), {
+                type: "image/webp",
+              })
+            );
+          },
+          "image/webp",
+          0.82
+        );
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const saveDeliverable = async () => {
+    if (!order) return;
+
+    if (!deliverableFile) {
+      setErr("制作事例ファイルを選択してください");
+      return;
+    }
+
+    setErr("");
+    setSaveMessage("");
+    setSavingDeliverable(true);
+
+    try {
+      const uploadFile = await compressImage(deliverableFile);
+
+      const fileExt = uploadFile.name.split(".").pop() || "file";
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${fileExt}`;
+
+      const filePath = `${order.id}/${fileName}`;
+      const allTags = getAllWorkTags();
+      const titleForSave = publicTitle || order.store_name || order.title || "制作事例";
+
+      const { error: uploadError } = await supabase.storage
+        .from("deliverables")
+        .upload(filePath, uploadFile);
+
+      if (uploadError) {
+        throw new Error(`アップロード失敗: ${uploadError.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("deliverables")
+        .getPublicUrl(filePath);
+
+      const { data, error } = await supabase
+        .from("order_deliverables")
+        .insert({
+          order_id: order.id,
+          file_url: publicUrlData.publicUrl,
+          file_name: uploadFile.name,
+          file_type: uploadFile.type || null,
+          tags: allTags,
+          public_title: titleForSave,
+          public_comment: publicComment || null,
+          is_public: isPublic,
+        })
+        .select(
+          "id,order_id,file_url,file_name,file_type,tags,public_title,public_comment,is_public,created_at"
+        )
+        .single();
+
+      if (error) {
+        throw new Error(`納品物登録失敗: ${error.message}`);
+      }
+
+      if (isPublic) {
+        const { error: worksError } = await supabase.from("works").insert({
+          source_order_id: order.id,
+          file_url: publicUrlData.publicUrl,
+          file_name: uploadFile.name,
+          file_type: uploadFile.type || null,
+          tags: allTags,
+          public_title: titleForSave,
+          public_comment: publicComment || null,
+          store_name: order.store_name || null,
+          order_title: order.title || null,
+        });
+
+        if (worksError) {
+          throw new Error(`制作事例への保存に失敗しました: ${worksError.message}`);
+        }
+      }
+
+      setDeliverables((prev) => [data as Deliverable, ...prev]);
+      setDeliverableFile(null);
+      setDeliverableTags([]);
+      setHashTagText("");
+      setPublicTitle("");
+      setPublicComment("");
+      setIsPublic(true);
+
+      setSaveMessage(
+        isPublic
+          ? "納品物を保存し、制作事例にも追加しました"
+          : "納品物を保存しました"
+      );
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "制作事例の保存に失敗しました");
+    } finally {
+      setSavingDeliverable(false);
+    }
+  };
+
+  const deleteDeliverable = async (item: Deliverable) => {
+    const ok = confirm(
+      "この納品物を案件内の一覧から削除しますか？\n制作事例テーブルと画像本体は削除されません。"
+    );
+    if (!ok) return;
+
+    setErr("");
+    setSaveMessage("");
+    setDeletingDeliverableId(item.id);
+
+    try {
+      const { error } = await supabase
+        .from("order_deliverables")
+        .delete()
+        .eq("id", item.id);
+
+      if (error) {
+        throw new Error(`削除に失敗しました: ${error.message}`);
+      }
+
+      setDeliverables((prev) => prev.filter((row) => row.id !== item.id));
+      setSaveMessage("案件内の納品物一覧から削除しました");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "削除に失敗しました");
+    } finally {
+      setDeletingDeliverableId(null);
+    }
+  };
+
+  const syncTypingState = async () => {
+    const name = localStorage.getItem("user_name");
+    if (!name) return;
+
+    const { data, error } = await supabase
+      .from("typing_status")
+      .select("user_name,is_typing,updated_at")
+      .eq("order_id", orderId);
+
+    if (error) return;
+
+    const now = Date.now();
+
+    const someoneTyping = ((data as TypingRow[] | null) ?? []).some((row) => {
+      if (row.user_name === name) return false;
+      if (!row.is_typing) return false;
+      if (!row.updated_at) return true;
+
+      const diff = now - new Date(row.updated_at).getTime();
+      return diff < 3000;
+    });
+
+    setOtherTyping(someoneTyping);
+  };
+
+  const updateTyping = async (isTyping: boolean) => {
+    const name = localStorage.getItem("user_name");
+    if (!name) return;
+
+    const { data: existing } = await supabase
+      .from("typing_status")
+      .select("id")
+      .eq("order_id", orderId)
+      .eq("user_name", name)
+      .maybeSingle();
+
+    if (existing?.id) {
+      await supabase
+        .from("typing_status")
+        .update({
+          is_typing: isTyping,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("typing_status").insert({
+        order_id: orderId,
+        user_name: name,
+        is_typing: isTyping,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  };
+
+  const markAsRead = async () => {
+    const name = localStorage.getItem("user_name");
+    if (!name) return;
+
+    const now = new Date().toISOString();
+
+    const { data: existing, error: selectError } = await supabase
+      .from("order_reads")
+      .select("id")
+      .eq("order_id", orderId)
+      .eq("user_name", name)
+      .maybeSingle();
+
+    if (selectError) return;
+
+    if (existing?.id) {
+      await supabase
+        .from("order_reads")
+        .update({
+          last_read_at: now,
+          updated_at: now,
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("order_reads").insert({
+        order_id: orderId,
+        user_name: name,
+        last_read_at: now,
+        updated_at: now,
+      });
+    }
+  };
+
+  const clearTypingTimer = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const clearUndoTimer = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  };
+
+  const removeSelectedFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const sendMessage = async () => {
+    setErr("");
+
+    const content = input.trim();
+    const name = localStorage.getItem("user_name");
+
+    if (!name) {
       router.push("/login");
       return;
     }
 
-    setUserName(saved);
-    load();
+    if (!content && files.length === 0) return;
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setSending(true);
+
+    try {
+      const uploadedImageUrls: string[] = [];
+
+      for (const originalFile of files) {
+        const file = await compressImage(originalFile);
+
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(
+            `「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`
+          );
+        }
+
+        const fileExt = file.name.split(".").pop() || "jpg";
+        const fileName = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExt}`;
+        const filePath = `chat/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("chat-images")
+          .upload(filePath, file);
+
+        if (uploadError) {
+          throw new Error(
+            "画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。"
+          );
+        }
+
+        const { data } = supabase.storage
+          .from("chat-images")
+          .getPublicUrl(filePath);
+
+        uploadedImageUrls.push(data.publicUrl);
+      }
+
+      const rowsToInsert: {
+        order_id: string;
+        content: string | null;
+        image_url: string | null;
+        sender_name: string;
+      }[] = [];
+
+      if (content || uploadedImageUrls.length === 0) {
+        rowsToInsert.push({
+          order_id: orderId,
+          content: content || null,
+          image_url: null,
+          sender_name: name,
+        });
+      }
+
+      for (const imageUrl of uploadedImageUrls) {
+        rowsToInsert.push({
+          order_id: orderId,
+          content: null,
+          image_url: imageUrl,
+          sender_name: name,
+        });
+      }
+
+      const { data: insertedRows, error } = await supabase
+        .from("messages")
+        .insert(rowsToInsert)
+        .select("id,order_id,content,image_url,sender_name,created_at");
+
+      if (error) {
+        throw new Error("メッセージの送信に失敗しました");
+      }
+
+      if (insertedRows) {
+        const rows = insertedRows as Message[];
+
+        setMessages((prev) => {
+          const next = [...prev];
+
+          for (const row of rows) {
+            if (!next.some((m) => m.id === row.id)) {
+              next.push(row);
+            }
+          }
+
+          return next;
+        });
+
+        setLastSentIds(rows.map((row) => row.id));
+        setCanUndo(true);
+        clearUndoTimer();
+
+        undoTimerRef.current = setTimeout(() => {
+          setCanUndo(false);
+          setLastSentIds([]);
+        }, 30000);
+      }
+
+      await markAsRead();
+      clearTypingTimer();
+      setInput("");
+      setFiles([]);
+      await updateTyping(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "送信に失敗しました");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const undoLastSend = async () => {
+    if (lastSentIds.length === 0) return;
+
+    setUndoing(true);
+    setErr("");
+
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .in("id", lastSentIds);
+
+      if (error) {
+        throw new Error("送信取り消しに失敗しました");
+      }
+
+      setMessages((prev) => prev.filter((m) => !lastSentIds.includes(m.id)));
+      setCanUndo(false);
+      setLastSentIds([]);
+      clearUndoTimer();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "送信取り消しに失敗しました");
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   useEffect(() => {
-    const saved = localStorage.getItem("user_name");
-    if (!saved) return;
+    if (!orderId) return;
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
 
-    const channel = supabase
-      .channel("orders-list-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        load();
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
-        load();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_reads" }, () => {
-        load();
-      })
+  useEffect(() => {
+    if (!messagesBoxRef.current) return;
+    messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!orderId) return;
+
+    const messageChannel = supabase
+      .channel(`messages-realtime-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const row = payload.new as Message;
+
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === row.id)) return prev;
+            return [...prev, row];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const oldRow = payload.old as { id?: string };
+          if (!oldRow.id) return;
+          setMessages((prev) => prev.filter((m) => m.id !== oldRow.id));
+        }
+      )
+      .subscribe();
+
+    const orderChannel = supabase
+      .channel(`order-realtime-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => {
+          const row = payload.new as Order;
+          if (!row) return;
+
+          setOrder(row);
+          syncDeliveryDraft(row);
+        }
+      )
+      .subscribe();
+
+    const deliverableChannel = supabase
+      .channel(`deliverables-realtime-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "order_deliverables",
+          filter: `order_id=eq.${orderId}`,
+        },
+        () => {
+          loadDeliverables();
+        }
+      )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messageChannel);
+      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(deliverableChannel);
     };
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [orderId]);
 
   useEffect(() => {
+    if (!orderId) return;
+
+    syncTypingState();
+
+    const channel = supabase
+      .channel(`typing-realtime-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "typing_status",
+          filter: `order_id=eq.${orderId}`,
+        },
+        () => {
+          syncTypingState();
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") syncTypingState();
+      });
+
     const interval = setInterval(() => {
-      load();
-    }, 20000);
+      syncTypingState();
+    }, 2000);
 
-    return () => clearInterval(interval);
-
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
+  useEffect(() => {
+    return () => {
+      clearTypingTimer();
+      clearUndoTimer();
+    };
   }, []);
 
-  const filteredOrders = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
+  const groupedMessages: MessageGroup[] = [];
 
-    const list = orders.filter((o) => {
-      const matchesKeyword =
-        !keyword ||
-        (o.title ?? "").toLowerCase().includes(keyword) ||
-        (o.store_name ?? "").toLowerCase().includes(keyword) ||
-        (o.contact_name ?? "").toLowerCase().includes(keyword) ||
-        (o.designer_name ?? "").toLowerCase().includes(keyword) ||
-        (o.created_by_name ?? "").toLowerCase().includes(keyword) ||
-        (o.display_id ?? "").toLowerCase().includes(keyword);
+  for (let i = 0; i < messages.length; i++) {
+    const current = messages[i];
+    const isImageOnly = !current.content && !!current.image_url;
 
-      const matchesStatus =
-        statusFilter === "すべて" || o.display_status === statusFilter;
+    if (!isImageOnly) {
+      groupedMessages.push({ type: "single", message: current });
+      continue;
+    }
 
-      return matchesKeyword && matchesStatus;
-    });
+    const group: Message[] = [current];
+    let j = i + 1;
 
-    list.sort((a, b) => {
-      if (sortMode === "古い順") {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    while (j < messages.length) {
+      const next = messages[j];
+      const nextIsImageOnly = !next.content && !!next.image_url;
+
+      const closeInTime =
+        Math.abs(
+          new Date(next.created_at).getTime() -
+            new Date(current.created_at).getTime()
+        ) <
+        60 * 1000;
+
+      if (
+        nextIsImageOnly &&
+        next.sender_name === current.sender_name &&
+        closeInTime
+      ) {
+        group.push(next);
+        j++;
+      } else {
+        break;
       }
+    }
 
-      if (sortMode === "店舗名順") {
-        return (a.store_name ?? "").localeCompare(b.store_name ?? "", "ja");
-      }
+    if (group.length === 1) {
+      groupedMessages.push({ type: "single", message: current });
+    } else {
+      groupedMessages.push({
+        type: "image-group",
+        sender_name: current.sender_name,
+        created_at: current.created_at,
+        isMe: current.sender_name === userName,
+        images: group,
+      });
 
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
+      i = j - 1;
+    }
+  }
 
-    return list;
-  }, [orders, searchKeyword, statusFilter, sortMode]);
+  const currentStatus = getDisplayStatus(order?.status ?? "");
+  const statusStyle = getStatusColor(currentStatus);
+  const hasSendContent = input.trim().length > 0 || files.length > 0;
+  const allPreviewTags = getAllWorkTags();
 
   return (
     <div className="page">
-      <div className="wrap">
-        <header className="topHeader">
-          <div className="loginText">ログイン中：{userName}</div>
-
-          <button type="button" onClick={logout} className="logoutBtn">
-            ログアウト
+      <div className="shell">
+        <div className="topBar">
+          <button
+            type="button"
+            onClick={() => router.push("/orders")}
+            className="backBtn"
+          >
+            ← 一覧へ
           </button>
-        </header>
 
-        <section className="createBox">
-          <h2>新規依頼作成</h2>
-
-          <div className="createGrid">
-            <input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="依頼案件名（必須）"
-            />
-            <input
-              value={newStoreName}
-              onChange={(e) => setNewStoreName(e.target.value)}
-              placeholder="店舗名"
-            />
-            <input
-              value={newContactName}
-              onChange={(e) => setNewContactName(e.target.value)}
-              placeholder="担当者名"
-            />
-
-            <button type="button" onClick={createOrder} disabled={creating} className="createBtn">
-              {creating ? "作成中..." : "案件作成"}
-            </button>
-
-            <button type="button" onClick={load} className="reloadBtn">
-              再読み込み
-            </button>
-          </div>
-
-          {err && <p className="errorText">エラー: {err}</p>}
-        </section>
-
-        <section className="listHead">
-          <h2>案件一覧</h2>
-
-          <div className="filters">
-            <input
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="検索（ID・店舗名・担当者・案件名・担当デザイナー）"
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "すべて" | DisplayStatus)}
-            >
-              <option value="すべて">すべて</option>
-              <option value="新規">新規</option>
-              <option value="進行中">進行中</option>
-              <option value="納品済み">納品済み</option>
-              <option value="アーカイブ">アーカイブ</option>
-            </select>
-
-            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
-              <option value="新しい順">新しい順</option>
-              <option value="古い順">古い順</option>
-              <option value="店舗名順">店舗名順</option>
-            </select>
-          </div>
-        </section>
+          <div className="loginName">ログイン中:{userName || "読み込み中"}</div>
+        </div>
 
         {loading && <p className="loadingText">読み込み中...</p>}
 
-        {!loading && filteredOrders.length === 0 && (
-          <div className="emptyBox">条件に合う案件がありません</div>
-        )}
+        {order && (
+          <>
+            <section className="chatCard">
+              <div className="chatHeader">
+                <div className="titleBlock">
+                  <span className="titleLabel">案件名</span>
+                  <h1>{order.title}</h1>
+                </div>
+              </div>
 
-        <section className="orderList">
-          {filteredOrders.map((o) => {
-            const statusStyle = getStatusColor(o.display_status);
-
-            return (
-              <article
-                key={o.id}
-                className={`orderCard ${o.unread ? "isUnread" : ""}`}
-                onClick={() => router.push(`/orders/${o.id}`)}
-              >
-                <div className="infoArea">
-                  <div>
-                    <div className="label">依頼案件名</div>
-                    <div className="mainTitle">{o.title || "未入力"}</div>
+              <div ref={messagesBoxRef} className="messagesBox">
+                {messages.length === 0 ? (
+                  <div className="emptyMessage">
+                    制作内容・希望サイズ・参考イメージを
+                    <br />
+                    こちらのチャットへご入力ください
                   </div>
+                ) : (
+                  <div className="messageList">
+                    {groupedMessages.map((group, index) => {
+                      if (group.type === "single") {
+                        const m = group.message;
+                        const isMe = m.sender_name === userName;
 
-                  <div>
-                    <div className="label">使用店舗名</div>
-                    <div className="storeTitle">{o.store_name || "未入力"}</div>
-                  </div>
+                        return (
+                          <div
+                            key={m.id}
+                            className={`messageRow ${isMe ? "me" : "other"}`}
+                          >
+                            <div className="messageWrap">
+                              <div className="messageMeta">
+                                {m.sender_name} ・{" "}
+                                {new Date(m.created_at).toLocaleString("ja-JP")}
+                              </div>
 
-                  <div className="metaLine">
-                    <span>オーダーID:{o.display_id || "未採番"}</span>
-                    <span>依頼者名:{o.contact_name || "未入力"}</span>
-                    <span>作成者:{o.created_by_name || "不明"}</span>
-                    <span>最新:{formatDate(o.latest_message_at)}</span>
+                              <div className={`bubble ${isMe ? "me" : "other"}`}>
+                                {m.content && <div>{m.content}</div>}
+
+                                {m.image_url && (
+                                  <img
+                                    src={m.image_url}
+                                    alt="送信画像"
+                                    className="sentImage"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={`${group.sender_name}-${group.created_at}-${index}`}
+                          className={`messageRow ${group.isMe ? "me" : "other"}`}
+                        >
+                          <div className="messageWrap">
+                            <div className="messageMeta">
+                              {group.sender_name} ・{" "}
+                              {new Date(group.created_at).toLocaleString("ja-JP")}
+                            </div>
+
+                            <div
+                              className={`bubble imageBubble ${
+                                group.isMe ? "me" : "other"
+                              }`}
+                            >
+                              <div className="imageGrid">
+                                {group.images.map((img) => (
+                                  <img
+                                    key={img.id}
+                                    src={img.image_url || ""}
+                                    alt="送信画像"
+                                    className="groupImage"
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+
+              <div className="typingArea">{otherTyping ? "入力中..." : ""}</div>
+
+              {previewUrls.length > 0 && (
+                <div className="previewDock">
+                  {previewUrls.map((item, index) => (
+                    <div className="previewItem" key={`${item.file.name}-${index}`}>
+                      <img src={item.url} alt={`プレビュー ${index + 1}`} />
+
+                      <button
+                        type="button"
+                        onClick={() => removeSelectedFile(index)}
+                        className="previewRemove"
+                        aria-label="画像を削除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="inputBar">
+                <label htmlFor="image-upload" className="imageAddBtn">
+                  画像を追加
+                </label>
+
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []);
+                    if (selected.length === 0) return;
+
+                    setFiles((prev) => [...prev, ...selected]);
+                    e.currentTarget.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+
+                <textarea
+                  value={input}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setInput(value);
+
+                    if (!value.trim()) {
+                      updateTyping(false);
+                      clearTypingTimer();
+                      return;
+                    }
+
+                    updateTyping(true);
+                    clearTypingTimer();
+
+                    typingTimeoutRef.current = setTimeout(() => {
+                      updateTyping(false);
+                      typingTimeoutRef.current = null;
+                    }, 1500);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.ctrlKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  onInput={(e) => {
+                    const target = e.currentTarget;
+                    target.style.height = "46px";
+                    target.style.height = `${Math.min(
+                      target.scrollHeight,
+                      120
+                    )}px`;
+                  }}
+                  onBlur={() => {
+                    updateTyping(false);
+                    clearTypingTimer();
+                  }}
+                  placeholder={
+                    files.length > 0 ? "画像を送信できます" : "メッセージを入力..."
+                  }
+                  rows={1}
+                  className="messageInput"
+                />
+
+                <button
+                  type="button"
+                  onClick={sendMessage}
+                  disabled={sending || !hasSendContent}
+                  className="sendBtn"
+                  aria-label="送信"
+                >
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M3 20L21 12L3 4V10L15 12L3 14V20Z"
+                      fill="white"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </section>
+
+            <section className="workPanel">
+              <div className="workTop">
+                <div className="storeNameBlock">
+                  <span>使用店舗名</span>
+                  <strong>{order.store_name || "店舗名未入力"}</strong>
                 </div>
 
-                <div className="actionArea" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="confirmBtn"
-                    onClick={() => router.push(`/orders/${o.id}`)}
-                  >
-                    案件を確認する
-                  </button>
+                <button
+                  type="button"
+                  className="largeStatusBtn"
+                  style={{
+                    background: statusStyle.bg,
+                    color: statusStyle.text,
+                  }}
+                  onClick={updateOrderStatus}
+                >
+                  {currentStatus}
+                </button>
+              </div>
 
-                  <div className="adminControls">
-                    <span className="designerText">担当デザイナー</span>
-
+              <div className="metaBox">
+                <div className="metaGrid">
+                  <label className="metaItem wide">
+                    <span>商品名</span>
                     <select
-                      value={o.designer_name || ""}
-                      onChange={(e) => updateDesignerName(o.id, e.target.value)}
-                      className="designerSelect"
+                      value={draftProductName}
+                      onChange={(e) => {
+                        setDraftProductName(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    >
+                      {PRODUCT_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="metaItem wide">
+                    <span>請求先</span>
+                    <select
+                      value={draftInvoiceTo}
+                      onChange={(e) => {
+                        setDraftInvoiceTo(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    >
+                      {INVOICE_TO_OPTIONS.map((name) => (
+                        <option key={name || "empty"} value={name}>
+                          {name || "未設定"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="metaItem">
+                    <span>最終納品日</span>
+                    <input
+                      type="date"
+                      value={draftDeliveryDate}
+                      onChange={(e) => {
+                        setDraftDeliveryDate(e.target.value);
+                        setSaveMessage("");
+                      }}
+                    />
+                  </label>
+
+                  <label className="metaItem">
+                    <span>納品数</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftDeliveryCount}
+                      onChange={(e) => {
+                        setDraftDeliveryCount(Number(e.target.value || 0));
+                        setSaveMessage("");
+                      }}
+                    />
+                  </label>
+
+                  <label className="metaItem">
+                    <span>担当デザイナー</span>
+                    <select
+                      value={order.designer_name || ""}
+                      onChange={(e) => updateDesignerName(e.target.value)}
                     >
                       {DESIGNER_OPTIONS.map((name) => (
                         <option key={name || "empty"} value={name}>
@@ -566,489 +1289,1108 @@ export default function OrdersPage() {
                         </option>
                       ))}
                     </select>
-
-                    <button
-                      type="button"
-                      className="statusBtn"
-                      style={{
-                        background: statusStyle.bg,
-                        color: statusStyle.text,
-                      }}
-                      onClick={() => updateOrderStatus(o.id, getNextStatus(o.display_status))}
-                    >
-                      {o.display_status}
-                    </button>
-                  </div>
+                  </label>
                 </div>
 
-                {o.unread_count > 0 && (
-                  <div className="unreadBadge">
-                    {o.unread_count > 99 ? "99+" : o.unread_count}
+                <button
+                  type="button"
+                  className="saveMetaBtn"
+                  onClick={saveDeliveryInfo}
+                  disabled={savingDelivery}
+                >
+                  {savingDelivery ? "保存中" : "保存"}
+                </button>
+              </div>
+
+              {saveMessage && <div className="saveMessage">{saveMessage}</div>}
+
+              <div className="uploadBox">
+                <div
+                  className={`dropArea ${isDragOver ? "isDragOver" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) setDeliverableFile(file);
+                  }}
+                >
+                  <label htmlFor="deliverable-upload" className="dropLabel">
+                    <input
+                      id="deliverable-upload"
+                      type="file"
+                      onChange={(e) => {
+                        setDeliverableFile(e.target.files?.[0] || null);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+
+                    <div className="dropIcon">☁</div>
+                    <strong>Drag & drop images, videos, or any file</strong>
+                    <span>or browse files on your computer</span>
+                  </label>
+
+                  {deliverableFile && (
+                    <div className="selectedFile">
+                      {deliverablePreviewUrl ? (
+                        <img src={deliverablePreviewUrl} alt="選択ファイル" />
+                      ) : (
+                        <div className="fileIcon">FILE</div>
+                      )}
+
+                      <div>
+                        <strong>{deliverableFile.name}</strong>
+                        <small>{deliverableFile.type || "file"}</small>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeliverableFile(null)}
+                        aria-label="ファイルを外す"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="workForm">
+                  <div className="tagList">
+                    {TAG_OPTIONS.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={
+                          deliverableTags.includes(tag) ? "tag active" : "tag"
+                        }
+                        onClick={() => toggleDeliverableTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    className="titleInput"
+                    value={publicTitle}
+                    onChange={(e) => setPublicTitle(e.target.value)}
+                    placeholder="公開タイトル（未入力なら店舗名・案件名）"
+                  />
+
+                  <textarea
+                    className="commentInput"
+                    value={publicComment}
+                    onChange={(e) => setPublicComment(e.target.value)}
+                    placeholder="公開コメント"
+                  />
+
+                  <input
+                    className="hashInput"
+                    value={hashTagText}
+                    onChange={(e) => setHashTagText(e.target.value)}
+                    placeholder="ハッシュタグ 例：金沢 求人 夏 イベント"
+                  />
+
+                  <label className="publicCheck">
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                    />
+                    WEBサイトの制作実績に掲載する
+                  </label>
+
+                  <div className="previewCard">
+                    <span>ポートフォリオ表示プレビュー</span>
+                    <strong>
+                      {publicTitle || order.store_name || order.title || "制作事例"}
+                    </strong>
+                    <small>
+                      {allPreviewTags.length > 0
+                        ? allPreviewTags.map((tag) => `#${tag}`).join(" ")
+                        : "タグ未選択"}
+                    </small>
+                    <p>{publicComment || "公開用コメントがここに入ります。"}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="saveWorkBtn"
+                    onClick={saveDeliverable}
+                    disabled={savingDeliverable}
+                  >
+                    {savingDeliverable ? "アップロード中..." : "制作事例をアップロード"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="deliverableList">
+                <h3>登録済み納品物</h3>
+
+                {deliverables.length === 0 ? (
+                  <p className="emptyDeliverable">まだ納品物は登録されていません。</p>
+                ) : (
+                  <div className="deliverableCards">
+                    {deliverables.map((item) => (
+                      <article key={item.id} className="deliverableCard">
+                        <div>
+                          <strong>{item.public_title || item.file_name || "納品物"}</strong>
+                          <p>{item.public_comment || "コメントなし"}</p>
+
+                          <div className="miniTags">
+                            {(item.tags || []).map((tag) => (
+                              <span key={tag}>#{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="deliverableActions">
+                          {item.is_public && <span className="publicBadge">WEB掲載</span>}
+
+                          <a href={item.file_url} target="_blank" rel="noopener noreferrer">
+                            開く
+                          </a>
+
+                          <button
+                            type="button"
+                            className="deleteDeliverableBtn"
+                            onClick={() => deleteDeliverable(item)}
+                            disabled={deletingDeliverableId === item.id}
+                          >
+                            {deletingDeliverableId === item.id ? "削除中" : "削除"}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
                   </div>
                 )}
-              </article>
-            );
-          })}
-        </section>
+              </div>
 
-        <footer className="footer">© 2026 1best Order System</footer>
+              <div className="orderHint">
+                <strong>オーダーID：{order.display_id || "未採番"}</strong>
+                <br />
+                公式LINEでこの案件を呼び出す場合は、#から始まるオーダーIDを入力してください。
+              </div>
+            </section>
+
+            {err && <div className="errorBox">{err}</div>}
+          </>
+        )}
       </div>
 
       <style jsx>{`
         .page {
           min-height: 100vh;
-          background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-          color: #0f172a;
-          padding: 24px;
+          background: #f3f6fa;
+          color: #111827;
+          padding: 46px 20px 60px;
           box-sizing: border-box;
         }
 
-        .wrap {
-          max-width: 1180px;
+        .shell {
+          width: 100%;
+          max-width: 1120px;
           margin: 0 auto;
         }
 
-        .topHeader {
+        .topBar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 10px;
+        }
+
+        .backBtn {
+          background: #ffffff;
+          color: #263241;
+          border: 1px solid rgba(17, 24, 39, 0.35);
+          border-radius: 999px;
+          padding: 10px 20px;
+          cursor: pointer;
+          font-weight: 900;
+          font-size: 15px;
+        }
+
+        .loginName {
+          font-size: 13px;
+          font-weight: 900;
+          color: #263241;
+        }
+
+        .loadingText {
+          color: #475569;
+          font-weight: 700;
+        }
+
+        .chatCard {
+          background: #465361;
+          border-radius: 24px;
+          overflow: hidden;
+          height: 800px;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+          margin-bottom: 56px;
+        }
+
+        .chatHeader {
+          height: 72px;
+          background: #1e2c3d;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          padding: 0 34px;
+          box-sizing: border-box;
+        }
+
+        .titleBlock {
+          min-width: 0;
+          display: flex;
+          align-items: baseline;
+          gap: 22px;
+        }
+
+        .titleLabel {
+          flex-shrink: 0;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .titleBlock h1 {
+          margin: 0;
+          font-size: clamp(25px, 4vw, 36px);
+          line-height: 1.1;
+          font-weight: 950;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .messagesBox {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 26px 28px;
+          box-sizing: border-box;
+          position: relative;
+        }
+
+        .emptyMessage {
+          min-height: 400px;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 22px;
+          font-weight: 900;
+          line-height: 1.75;
+        }
+
+        .messageList {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .messageRow {
+          display: flex;
+        }
+
+        .messageRow.me {
+          justify-content: flex-end;
+        }
+
+        .messageRow.other {
+          justify-content: flex-start;
+        }
+
+        .messageWrap {
+          width: 100%;
+          max-width: min(78%, 560px);
+        }
+
+        .messageMeta {
+          color: rgba(255, 255, 255, 0.76);
+          font-size: 11px;
+          margin-bottom: 6px;
+          font-weight: 700;
+          word-break: break-word;
+        }
+
+        .messageRow.me .messageMeta {
+          text-align: right;
+        }
+
+        .bubble {
+          padding: 12px 14px;
+          line-height: 1.65;
+          white-space: pre-wrap;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          color: #ffffff;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .bubble.me {
+          background: #06c755;
+          border-radius: 20px 20px 6px 20px;
+        }
+
+        .bubble.other {
+          background: #374151;
+          border-radius: 20px 20px 20px 6px;
+        }
+
+        .sentImage {
+          width: 100%;
+          max-width: 280px;
+          height: auto;
+          border-radius: 14px;
+          margin-top: 10px;
+          display: block;
+          object-fit: cover;
+          background: #111827;
+        }
+
+        .sentImage:first-child {
+          margin-top: 0;
+        }
+
+        .imageGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .groupImage {
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          object-fit: cover;
+          border-radius: 12px;
+          display: block;
+          background: #111827;
+        }
+
+        .typingArea {
+          min-height: 20px;
+          padding: 0 32px;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 13px;
+          font-weight: 800;
+          box-sizing: border-box;
+        }
+
+        .previewDock {
+          display: flex;
+          gap: 10px;
+          padding: 8px 30px 0;
+          overflow-x: auto;
+          box-sizing: border-box;
+        }
+
+        .previewItem {
+          width: 86px;
+          height: 86px;
+          flex: 0 0 auto;
+          position: relative;
+          border-radius: 18px;
+          overflow: hidden;
+          background: #111827;
+          border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .previewItem img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .previewRemove {
+          position: absolute;
+          right: 6px;
+          top: 6px;
+          width: 24px;
+          height: 24px;
+          border-radius: 999px;
+          border: none;
+          background: rgba(15, 23, 42, 0.82);
+          color: #ffffff;
+          font-size: 18px;
+          line-height: 1;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .inputBar {
+          margin: 14px 30px 28px;
+          min-height: 66px;
+          border-radius: 999px;
+          background: #f8fafc;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 14px;
+          box-sizing: border-box;
+          box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+        }
+
+        .imageAddBtn {
+          height: 44px;
+          padding: 0 24px;
+          border-radius: 999px;
+          background: #858e98;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 900;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .messageInput {
+          flex: 1;
+          min-width: 0;
+          min-height: 46px;
+          height: 46px;
+          max-height: 120px;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: #475569;
+          font-size: 15px;
+          font-weight: 700;
+          resize: none;
+          line-height: 1.5;
+          font-family: inherit;
+          padding: 8px 8px;
+          box-sizing: border-box;
+        }
+
+        .sendBtn {
+          width: 50px;
+          height: 50px;
+          border-radius: 999px;
+          border: none;
+          background: #06c755;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .sendBtn:disabled {
+          background: #94a3b8;
+          cursor: default;
+          opacity: 0.7;
+        }
+
+        .workPanel {
+          width: 90%;
+          margin: 0 auto;
+        }
+
+        .workTop {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 12px;
+          gap: 24px;
           margin-bottom: 14px;
         }
 
-        .loginText {
-          font-size: 14px;
-          font-weight: 700;
-          color: #334155;
-        }
-
-        .logoutBtn,
-        .reloadBtn {
-          background: #fff;
-          border: 1px solid #cbd5e1;
-          color: #0f172a;
-          border-radius: 12px;
-          padding: 10px 16px;
-          font-size: 13px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .createBox {
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
-          margin-bottom: 24px;
-        }
-
-        .createBox h2,
-        .listHead h2 {
-          margin: 0;
-          font-size: 22px;
-          line-height: 1.3;
-        }
-
-        .createGrid {
-          margin-top: 14px;
-          display: grid;
-          grid-template-columns: 1.1fr 1fr 1fr 140px 130px;
-          gap: 10px;
-          align-items: center;
-        }
-
-        input,
-        select {
-          width: 100%;
-          height: 40px;
-          border: 1px solid #cbd5e1;
-          border-radius: 12px;
-          background: #fff;
-          color: #0f172a;
-          padding: 0 12px;
-          font-size: 13px;
-          box-sizing: border-box;
-          outline: none;
-        }
-
-        input:focus,
-        select:focus {
-          border-color: #94a3b8;
-          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.15);
-        }
-
-        .createBtn {
-          height: 40px;
-          border: none;
-          border-radius: 12px;
-          background: #071426;
-          color: #fff;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
-        .errorText {
-          color: #ef4444;
-          font-size: 13px;
-          font-weight: 700;
-          margin: 12px 0 0;
-        }
-
-        .listHead {
+        .storeNameBlock {
           display: flex;
-          justify-content: space-between;
+          align-items: baseline;
+          gap: 16px;
+        }
+
+        .storeNameBlock span {
+          font-size: 15px;
+          font-weight: 950;
+        }
+
+        .storeNameBlock strong {
+          font-size: 28px;
+          font-weight: 950;
+        }
+
+        .largeStatusBtn {
+          min-width: 180px;
+          height: 54px;
+          border: none;
+          border-radius: 999px;
+          font-size: 18px;
+          font-weight: 950;
+          cursor: pointer;
+        }
+
+        .metaBox {
+          border: 1.5px solid #777;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.55);
+          padding: 34px 38px;
+          margin-bottom: 42px;
+          display: grid;
+          gap: 20px;
+        }
+
+        .metaGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 26px 40px;
+        }
+
+        .metaItem {
+          display: grid;
+          grid-template-columns: auto 1fr;
           align-items: center;
           gap: 16px;
-          margin-bottom: 12px;
-        }
-
-        .filters {
-          display: grid;
-          grid-template-columns: minmax(260px, 400px) 130px 130px;
-          gap: 10px;
-        }
-
-        .orderList {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-       .orderCard {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 32px;
-  align-items: center;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  padding: 24px 28px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-  cursor: pointer;
-}
-
-        .orderCard.isUnread {
-          border-color: rgba(59, 130, 246, 0.45);
-        }
-        
-        .infoArea {
-          display: grid;
-          grid-template-columns: 1.2fr 1fr;
-          column-gap: 42px;
-          row-gap: 18px;
-          min-width: 0;
-        }
-        
-        .label {
-          font-size: 11px;
-          font-weight: 900;
-          color: #64748b;
-          margin-bottom: 6px;
-          letter-spacing: 0.02em;
-        }
-        
-        .mainTitle,
-        .storeTitle {
-          font-size: 18px;
-          font-weight: 800;
-          line-height: 1.45;
-          color: #241915;
-          word-break: break-word;
-        }
-        
-        .metaLine {
-          grid-column: 1 / -1;
-          display: flex;
-          gap: 20px;
-          flex-wrap: wrap;
-          color: #4b5563;
-          font-size: 12px;
-          font-weight: 700;
-          line-height: 1.7;
-          padding-top: 2px;
-        }
-        .actionArea {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
           min-width: 0;
         }
 
-        .confirmBtn {
-          height: 50px;
-          border: none;
-          border-radius: 12px;
-          background: #1f130f;
-          color: #fff;
-          font-size: 17px;
-          font-weight: 900;
-          cursor: pointer;
-          box-shadow: 0 10px 24px rgba(31, 19, 15, 0.16);
-        }
-
-        .adminControls {
-          display: grid;
-          grid-template-columns: auto 1fr 82px;
-          gap: 7px;
-          align-items: center;
-          border: 1px solid #d1d5db;
-          border-radius: 999px;
-          padding: 5px 7px 5px 10px;
-          background: #fff;
-        }
-
-        .designerText {
-          color: #6b7280;
-          font-size: 10px;
-          font-weight: 800;
+        .metaItem span {
+          font-weight: 950;
+          font-size: 16px;
           white-space: nowrap;
         }
 
-        .designerSelect {
-          height: 26px;
+        .metaItem select,
+        .metaItem input {
+          width: 100%;
+          height: 48px;
+          border: 1.5px solid #999;
           border-radius: 999px;
-          font-size: 10px;
-          font-weight: 700;
-          padding: 0 8px;
-          border: 1px solid #d1d5db;
-        }
-
-        .statusBtn {
-          height: 26px;
-          border: none;
-          border-radius: 999px;
-          font-size: 10px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .unreadBadge {
-          position: absolute;
-          top: -10px;
-          right: -10px;
-          min-width: 36px;
-          height: 36px;
-          padding: 0 8px;
-          border-radius: 999px;
-          background: #ff0000;
-          color: #fff;
-          display: flex;
-          justify-content: center;
-          align-items: center;
+          background: #ffffff;
+          padding: 0 22px;
           font-size: 16px;
           font-weight: 900;
+          color: #263241;
           box-sizing: border-box;
         }
 
-        .emptyBox,
-        .loadingText {
-          background: #fff;
-          border-radius: 14px;
-          padding: 18px;
-          color: #64748b;
+        .saveMetaBtn {
+          justify-self: end;
+          width: 140px;
+          height: 40px;
+          border: none;
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff;
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 950;
+          cursor: pointer;
         }
 
-        .footer {
+        .saveMessage {
+          color: #16a34a;
+          font-size: 13px;
+          font-weight: 950;
+          margin: -26px 0 24px 4px;
+        }
+
+        .uploadBox {
+          background: #ffffff;
+          border: 1.5px solid #777;
+          border-radius: 22px;
+          padding: 34px 48px 38px;
+          margin-bottom: 26px;
+        }
+
+        .dropArea {
+          width: min(640px, 100%);
+          margin: 0 auto 28px;
+          border: 2px dashed #d8d0ff;
+          border-radius: 24px;
+          background: #fbfaff;
+          padding: 34px 26px 18px;
+          box-sizing: border-box;
           text-align: center;
-          margin-top: 20px;
-          color: #64748b;
-          font-size: 11px;
         }
 
-        button:hover {
+        .dropArea.isDragOver {
+          background: #f1efff;
+          border-color: #7c6bff;
+        }
+
+        .dropLabel {
+          cursor: pointer;
+          display: grid;
+          gap: 8px;
+          justify-items: center;
+        }
+
+        .dropLabel input {
+          display: none;
+        }
+
+        .dropIcon {
+          font-size: 46px;
+          color: #7c6bff;
+        }
+
+        .dropLabel strong {
+          font-size: 22px;
+          line-height: 1.25;
+          font-weight: 950;
+          color: #2f2f44;
+        }
+
+        .dropLabel span {
+          font-size: 13px;
+          color: #6b7280;
+          font-weight: 800;
+        }
+
+        .selectedFile {
+          margin-top: 20px;
+          display: grid;
+          grid-template-columns: 70px 1fr 40px;
+          align-items: center;
+          gap: 14px;
+          text-align: left;
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 10px 12px;
+        }
+
+        .selectedFile img,
+        .fileIcon {
+          width: 70px;
+          height: 48px;
+          object-fit: cover;
+          border-radius: 10px;
+          background: #e5e7eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 950;
+        }
+
+        .selectedFile strong {
+          display: block;
+          font-size: 14px;
+          color: #374151;
+          word-break: break-all;
+        }
+
+        .selectedFile small {
+          color: #9ca3af;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .selectedFile button {
+          border: none;
+          background: transparent;
+          color: #fb7185;
+          font-size: 32px;
+          cursor: pointer;
+        }
+
+        .workForm {
+          display: grid;
+          gap: 14px;
+        }
+
+        .tagList {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .tag {
+          min-width: 86px;
+          min-height: 30px;
+          border: 1px solid #cbd5e1;
+          border-radius: 999px;
+          background: #ffffff;
+          color: #334155;
+          padding: 7px 12px;
+          font-size: 11px;
+          font-weight: 950;
+          cursor: pointer;
+        }
+
+        .tag.active {
+          background: #111827;
+          border-color: #111827;
+          color: #ffffff;
+        }
+
+        .titleInput,
+        .hashInput,
+        .commentInput {
+          width: 100%;
+          border-radius: 14px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          padding: 12px 14px;
+          font-size: 13px;
+          font-weight: 800;
+          color: #374151;
+          box-sizing: border-box;
+          font-family: inherit;
+        }
+
+        .commentInput {
+          min-height: 82px;
+          resize: vertical;
+          line-height: 1.6;
+        }
+
+        .publicCheck {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 950;
+          color: #374151;
+        }
+
+        .previewCard {
+          border-radius: 18px;
+          background: #8b949d;
+          color: rgba(255, 255, 255, 0.92);
+          padding: 18px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .previewCard > span {
+          font-size: 12px;
+          font-weight: 950;
+          opacity: 0.75;
+        }
+
+        .previewCard strong {
+          font-size: 18px;
+        }
+
+        .previewCard small,
+        .previewCard p {
+          margin: 0;
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .saveWorkBtn {
+          width: min(760px, 100%);
+          justify-self: center;
+          height: 56px;
+          border: none;
+          border-radius: 999px;
+          background: #1847ff;
+          color: #ffffff;
+          font-size: 18px;
+          font-weight: 950;
+          cursor: pointer;
+          margin-top: 8px;
+        }
+
+        .saveWorkBtn:disabled {
+          background: #94a3b8;
+          cursor: default;
+        }
+
+        .deliverableList {
+          margin-top: 24px;
+        }
+
+        .deliverableList h3 {
+          font-size: 17px;
+          margin: 0 0 12px;
+        }
+
+        .emptyDeliverable {
+          font-size: 13px;
+          font-weight: 800;
+          color: #64748b;
+        }
+
+        .deliverableCards {
+          display: grid;
+          gap: 10px;
+        }
+
+        .deliverableCard {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 14px;
+          background: #f8fafc;
+        }
+
+        .deliverableCard strong {
+          display: block;
+          font-size: 14px;
+          margin-bottom: 6px;
+        }
+
+        .deliverableCard p {
+          margin: 0 0 8px;
+          font-size: 12px;
+          line-height: 1.6;
+          color: #64748b;
+        }
+
+        .miniTags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .miniTags span {
+          border-radius: 999px;
+          background: #e0e7ff;
+          color: #3730a3;
+          font-size: 10px;
+          font-weight: 900;
+          padding: 4px 8px;
+        }
+
+        .deliverableActions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          white-space: nowrap;
+        }
+
+        .publicBadge {
+          border-radius: 999px;
+          background: #dcfce7;
+          color: #15803d;
+          font-size: 10px;
+          font-weight: 950;
+          padding: 6px 8px;
+        }
+
+        .deliverableActions a {
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff;
+          text-decoration: none;
+          font-size: 11px;
+          font-weight: 950;
+          padding: 8px 12px;
+        }
+
+        .deleteDeliverableBtn {
+          border: none;
+          border-radius: 999px;
+          background: #ef4444;
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 950;
+          padding: 8px 12px;
+          cursor: pointer;
+        }
+
+        .deleteDeliverableBtn:disabled {
+          background: #fca5a5;
+          cursor: default;
+        }
+
+        .orderHint {
+          margin-top: 28px;
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 14px 16px;
+          color: #334155;
+          font-size: 13px;
+          line-height: 1.7;
+        }
+
+        .errorBox {
+          margin: 18px auto 0;
+          max-width: 900px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+          border-radius: 14px;
+          padding: 12px 14px;
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.6;
+        }
+
+        button:hover,
+        .imageAddBtn:hover,
+        .dropLabel:hover {
           opacity: 0.96;
           transform: translateY(-1px);
-          transition: 0.18s ease;
+          transition: 0.2s ease;
         }
 
-        @media (max-width: 980px) {
-          .createGrid {
-            grid-template-columns: 1fr;
+        @media (max-width: 768px) {
+          .page {
+            padding: 14px;
+            background: #f3f6fa;
+            min-height: 100dvh;
           }
 
-          .listHead {
+          .chatCard {
+            height: 76dvh;
+            min-height: 560px;
+            border-radius: 22px;
+          }
+
+          .chatHeader {
+            height: 62px;
+            padding: 0 18px;
+          }
+
+          .titleBlock {
+            gap: 12px;
+          }
+
+          .titleLabel {
+            font-size: 11px;
+          }
+
+          .titleBlock h1 {
+            font-size: 16px;
+          }
+
+          .messagesBox {
+            padding: 18px 14px;
+          }
+
+          .messageWrap {
+            max-width: 86%;
+          }
+
+          .bubble {
+            font-size: 14px;
+          }
+
+          .inputBar {
+            margin: 10px 12px 16px;
+            min-height: 62px;
+            padding: 8px;
+            gap: 8px;
+          }
+
+          .imageAddBtn {
+            height: 40px;
+            padding: 0 14px;
+            font-size: 10px;
+          }
+
+          .messageInput {
+            font-size: 13px;
+            min-height: 42px;
+            height: 42px;
+            padding: 7px 4px;
+          }
+
+          .sendBtn {
+            width: 48px;
+            height: 48px;
+          }
+
+          .workPanel {
+            width: 100%;
+          }
+
+          .workTop {
             align-items: stretch;
             flex-direction: column;
           }
 
-          .filters {
+          .storeNameBlock {
+            display: block;
+          }
+
+          .storeNameBlock strong {
+            display: block;
+            font-size: 22px;
+            margin-top: 4px;
+          }
+
+          .largeStatusBtn {
+            width: 100%;
+          }
+
+          .metaBox {
+            padding: 18px;
+            border-radius: 18px;
+            margin-bottom: 24px;
+          }
+
+          .metaGrid {
             grid-template-columns: 1fr;
+            gap: 14px;
           }
 
-          .orderCard {
+          .metaItem {
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 6px;
           }
 
-          .infoArea {
-            grid-template-columns: 1fr 1fr;
-            column-gap: 16px;
-            row-gap: 12px;
+          .metaItem select,
+          .metaItem input {
+            height: 42px;
+            font-size: 13px;
           }
 
-          .mainTitle,
-          .storeTitle {
+          .saveMetaBtn {
+            width: 100%;
+          }
+
+          .uploadBox {
+            padding: 18px;
+            border-radius: 18px;
+          }
+
+          .dropArea {
+            padding: 20px 14px 14px;
+          }
+
+          .dropLabel strong {
             font-size: 16px;
           }
 
-          .confirmBtn {
-            height: 44px;
+          .selectedFile {
+            grid-template-columns: 56px 1fr 32px;
+          }
+
+          .selectedFile img,
+          .fileIcon {
+            width: 56px;
+            height: 42px;
+          }
+
+          .saveWorkBtn {
+            height: 48px;
             font-size: 15px;
           }
 
-          .adminControls {
-            grid-template-columns: auto 1fr 76px;
-          }
-        }
-
-        @media (max-width: 560px) {
-          .page {
-            padding: 10px;
-          }
-
-          .topHeader {
-            margin-bottom: 10px;
-          }
-
-          .loginText {
-            font-size: 12px;
-          }
-
-          .logoutBtn {
-            padding: 8px 12px;
-            font-size: 11px;
-          }
-
-          .createBox {
+          .deliverableCard {
             display: block;
-            padding: 14px;
-            border-radius: 14px;
-            margin-bottom: 16px;
           }
 
-          .createBox h2 {
-            font-size: 18px;
-          }
-
-          .createGrid {
-            grid-template-columns: 1fr;
-            gap: 8px;
-            margin-top: 10px;
-          }
-
-          input,
-          select {
-            height: 38px;
-            font-size: 12px;
-          }
-
-          .createBtn,
-          .reloadBtn {
-            width: 100%;
-            height: 38px;
-            font-size: 12px;
-          }
-
-          .errorText {
-            font-size: 12px;
-          }
-
-          .listHead h2 {
-            font-size: 18px;
-          }
-
-          .filters {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 8px;
-            width: 100%;
-          }
-          
-          .filters input,
-          .filters select {
-            height: 38px;
-            font-size: 12px;
-          }
-
-          .orderCard {
-            grid-template-columns: 1fr;
-            padding: 14px;
-            border-radius: 14px;
-            gap: 10px;
-          }
-
-          .infoArea {
-            grid-template-columns: 1fr 1fr;
-            column-gap: 10px;
-            row-gap: 8px;
-          }
-
-          .label {
-            font-size: 10px;
-            margin-bottom: 4px;
-          }
-
-          .mainTitle,
-          .storeTitle {
-            font-size: 15px;
-            line-height: 1.35;
-          }
-
-          .metaLine {
-            gap: 6px;
-            font-size: 10px;
-            line-height: 1.5;
-          }
-
-          .actionArea {
-            gap: 6px;
-          }
-
-          .confirmBtn {
-            height: 40px;
-            border-radius: 10px;
-            font-size: 14px;
-            letter-spacing: 0.01em;
-          }
-
-          .adminControls {
-            grid-template-columns: auto 1fr 64px;
-            gap: 6px;
-            padding: 5px 6px 5px 8px;
-            border-radius: 999px;
-          }
-
-          .designerText {
-            font-size: 9px;
-          }
-
-          .designerSelect {
-            height: 24px;
-            font-size: 9px;
-            padding: 0 8px;
-          }
-
-          .statusBtn {
-            height: 24px;
-            font-size: 9px;
-          }
-
-          .unreadBadge {
-            top: -6px;
-            right: -6px;
-            min-width: 26px;
-            height: 26px;
-            font-size: 12px;
-          }
-
-          .footer {
-            font-size: 10px;
-            margin-top: 16px;
+          .deliverableActions {
+            margin-top: 12px;
+            flex-wrap: wrap;
           }
         }
       `}</style>
