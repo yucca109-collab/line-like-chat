@@ -30,7 +30,16 @@ export async function GET(req: Request) {
       designer_name,
       final_delivery_date,
       delivery_count,
-      created_at
+      created_at,
+      product_name,
+      invoice_to,
+      order_items (
+        id,
+        product_name,
+        quantity,
+        unit_price,
+        created_at
+      )
     `)
     .order("created_at", { ascending: false });
 
