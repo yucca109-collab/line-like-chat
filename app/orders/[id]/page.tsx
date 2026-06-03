@@ -87,20 +87,11 @@ const PRODUCT_OPTIONS = [
   "動画",
 ] as const;
 
+const PRODUCT_TAG_OPTIONS = PRODUCT_OPTIONS.filter(Boolean);
+
 const INVOICE_TO_OPTIONS = ["", "〇〇〇〇株式会社", "1Best株式会社", "その他"] as const;
 
-const TAG_OPTIONS = [
-  "スマホスライド",
-  "PCスライド",
-  "フリーバナー",
-  "バナー",
-  "ランキングロゴ",
-  "グラビア",
-  "その他",
-  "ガールズヘブン",
-  "GIF画像",
-  "動画",
-];
+
 
 const createBlankItem = (): OrderItemDraft => ({
   localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -343,32 +334,44 @@ export default function OrderDetailPage() {
     setOrder((prev) => (prev ? { ...prev, ...updatePayload } : prev));
   };
 
-  const updateItem = (
-    localId: string,
-    field: "product_name" | "quantity" | "unit_price",
-    value: string | number | null
-  ) => {
-    setSaveMessage("");
+const updateItem = (
+  localId: string,
+  field: "product_name" | "quantity" | "unit_price",
+  value: string | number | null
+) => {
+  setSaveMessage("");
 
-    setOrderItems((prev) =>
-      prev.map((item) => {
-        if (item.localId !== localId) return item;
+  setOrderItems((prev) =>
+    prev.map((item) => {
+      if (item.localId !== localId) return item;
 
-        if (field === "quantity") {
-          return { ...item, quantity: Math.max(0, Number(value || 0)) };
-        }
+      if (field === "quantity") {
+        return { ...item, quantity: Math.max(0, Number(value || 0)) };
+      }
 
-        if (field === "unit_price") {
-          return {
-            ...item,
-            unit_price: value === "" || value === null ? null : Number(value),
-          };
-        }
+      if (field === "unit_price") {
+        return {
+          ...item,
+          unit_price: value === "" || value === null ? null : Number(value),
+        };
+      }
 
-        return { ...item, product_name: String(value || "") };
-      })
-    );
-  };
+      const nextProductName = String(value || "");
+
+      setDeliverableTags((prevTags) => {
+        const customTags = prevTags.filter(
+          (tag) => !PRODUCT_TAG_OPTIONS.includes(tag)
+        );
+
+        return nextProductName
+          ? [...new Set([nextProductName, ...customTags])]
+          : customTags;
+      });
+
+      return { ...item, product_name: nextProductName };
+    })
+  );
+};
 
   const addOrderItem = () => {
     setOrderItems((prev) => [...prev, createBlankItem()]);
