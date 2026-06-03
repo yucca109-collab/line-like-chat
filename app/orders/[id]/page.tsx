@@ -666,6 +666,7 @@ export default function OrderDetailPage() {
         order_title: order.title || null,
 
         designer_name: order.designer_name || null,
+         created_by_name: order.created_by_name || null,
       });
 
       if (worksError) {
