@@ -1380,11 +1380,13 @@ export default function OrderDetailPage() {
                   </div>
 
                   <div className="itemBox">
-                    <div className="itemBoxHead">
-                      <strong>納品明細</strong>
-                      <span>合計納品数：{totalDeliveryCount}</span>
-                      <span>合計金額：¥{yen(totalAmount)}</span>
-                    </div>
+                      <div className="itemBoxHead">
+                        <strong>納品明細</strong>
+                      
+                        <span>
+                          合計納品数：{totalDeliveryCount}
+                        </span>
+                      </div>
 
                     <div className="itemRows">
                       {orderItems.map((item) => {
@@ -1430,15 +1432,7 @@ export default function OrderDetailPage() {
                               />
                             </label>
 
-                            <div className="priceDisplay">
-                              <span>単価</span>
-                              <strong>¥{yen(unitPrice)}</strong>
-                            </div>
-
-                            <div className="priceDisplay">
-                              <span>小計</span>
-                              <strong>¥{yen(subtotal)}</strong>
-                            </div>
+                        
 
                             <button
                               type="button"
@@ -2022,7 +2016,7 @@ export default function OrderDetailPage() {
 
         .itemRow {
           display: grid;
-          grid-template-columns: 1fr 120px 120px 120px 76px;
+          grid-template-columns: 1fr 140px 90px;
           gap: 10px;
           align-items: end;
         }
