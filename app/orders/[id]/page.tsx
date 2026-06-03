@@ -87,7 +87,7 @@ const PRODUCT_OPTIONS = [
   "動画",
 ] as const;
 
-const PRODUCT_TAG_OPTIONS = PRODUCT_OPTIONS.filter(Boolean);
+const PRODUCT_TAG_OPTIONS = PRODUCT_OPTIONS.filter(Boolean) as string[];
 
 const INVOICE_TO_OPTIONS = ["", "〇〇〇〇株式会社", "1Best株式会社", "その他"] as const;
 
