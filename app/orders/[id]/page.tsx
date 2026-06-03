@@ -20,6 +20,22 @@ type Order = {
   invoice_to: string | null;
 };
 
+type OrderItem = {
+  id: string;
+  order_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number | null;
+  created_at: string;
+};
+
+type OrderItemDraft = {
+  localId: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number | null;
+};
+
 type Message = {
   id: string;
   order_id: string;
@@ -79,6 +95,13 @@ const TAG_OPTIONS = [
   "動画",
 ];
 
+const createBlankItem = (): OrderItemDraft => ({
+  localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  product_name: "",
+  quantity: 1,
+  unit_price: null,
+});
+
 const getDisplayStatus = (status: string): DisplayStatus => {
   if (
     status === "新規" ||
@@ -117,6 +140,7 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItemDraft[]>([createBlankItem()]);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -136,8 +160,6 @@ export default function OrderDetailPage() {
   const [canUndo, setCanUndo] = useState(false);
 
   const [draftDeliveryDate, setDraftDeliveryDate] = useState("");
-  const [draftDeliveryCount, setDraftDeliveryCount] = useState(0);
-  const [draftProductName, setDraftProductName] = useState("");
   const [draftInvoiceTo, setDraftInvoiceTo] = useState("");
 
   const [deliverableFile, setDeliverableFile] = useState<File | null>(null);
@@ -158,6 +180,13 @@ export default function OrderDetailPage() {
     return URL.createObjectURL(deliverableFile);
   }, [deliverableFile]);
 
+  const totalDeliveryCount = useMemo(() => {
+    return orderItems.reduce((sum, item) => {
+      if (!item.product_name) return sum;
+      return sum + Number(item.quantity || 0);
+    }, 0);
+  }, [orderItems]);
+
   useEffect(() => {
     return () => {
       previewUrls.forEach((item) => URL.revokeObjectURL(item.url));
@@ -172,9 +201,36 @@ export default function OrderDetailPage() {
 
   const syncDeliveryDraft = (targetOrder: Order) => {
     setDraftDeliveryDate(targetOrder.final_delivery_date || "");
-    setDraftDeliveryCount(targetOrder.delivery_count ?? 0);
-    setDraftProductName(targetOrder.product_name || "");
     setDraftInvoiceTo(targetOrder.invoice_to || "");
+  };
+
+  const loadOrderItems = async () => {
+    const { data, error } = await supabase
+      .from("order_items")
+      .select("id,order_id,product_name,quantity,unit_price,created_at")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      setErr(`納品明細の読み込みに失敗しました: ${error.message}`);
+      return;
+    }
+
+    const rows = (data ?? []) as OrderItem[];
+
+    if (rows.length === 0) {
+      setOrderItems([createBlankItem()]);
+      return;
+    }
+
+    setOrderItems(
+      rows.map((row) => ({
+        localId: row.id,
+        product_name: row.product_name,
+        quantity: row.quantity,
+        unit_price: row.unit_price,
+      }))
+    );
   };
 
   const loadAll = async () => {
@@ -221,6 +277,8 @@ export default function OrderDetailPage() {
       setMessages((msgData ?? []) as Message[]);
     }
 
+    await loadOrderItems();
+
     setLoading(false);
     await markAsRead();
   };
@@ -255,9 +313,19 @@ export default function OrderDetailPage() {
     const currentStatus = getDisplayStatus(order.status);
     const nextStatus = getNextStatus(currentStatus);
 
+    const updatePayload: Partial<Order> = {
+      status: nextStatus,
+    };
+
+    if (nextStatus === "納品済み" && !draftDeliveryDate) {
+      const today = new Date().toISOString().slice(0, 10);
+      updatePayload.final_delivery_date = today;
+      setDraftDeliveryDate(today);
+    }
+
     const { error } = await supabase
       .from("orders")
-      .update({ status: nextStatus })
+      .update(updatePayload)
       .eq("id", order.id);
 
     if (error) {
@@ -265,7 +333,48 @@ export default function OrderDetailPage() {
       return;
     }
 
-    setOrder((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+    setOrder((prev) => (prev ? { ...prev, ...updatePayload } : prev));
+  };
+
+  const updateItem = (
+    localId: string,
+    field: "product_name" | "quantity" | "unit_price",
+    value: string | number | null
+  ) => {
+    setSaveMessage("");
+
+    setOrderItems((prev) =>
+      prev.map((item) => {
+        if (item.localId !== localId) return item;
+
+        if (field === "quantity") {
+          return { ...item, quantity: Math.max(0, Number(value || 0)) };
+        }
+
+        if (field === "unit_price") {
+          return {
+            ...item,
+            unit_price: value === "" || value === null ? null : Number(value),
+          };
+        }
+
+        return { ...item, product_name: String(value || "") };
+      })
+    );
+  };
+
+  const addOrderItem = () => {
+    setOrderItems((prev) => [...prev, createBlankItem()]);
+  };
+
+  const removeOrderItem = (localId: string) => {
+    setOrderItems((prev) => {
+      if (prev.length <= 1) {
+        return [createBlankItem()];
+      }
+
+      return prev.filter((item) => item.localId !== localId);
+    });
   };
 
   const saveDeliveryInfo = async () => {
@@ -275,12 +384,29 @@ export default function OrderDetailPage() {
     setSaveMessage("");
     setSavingDelivery(true);
 
+    const normalizedItems = orderItems
+      .map((item) => ({
+        product_name: item.product_name.trim(),
+        quantity: Number(item.quantity || 0),
+        unit_price: item.unit_price,
+      }))
+      .filter((item) => item.product_name && item.quantity > 0);
+
+    if (normalizedItems.length === 0) {
+      setSavingDelivery(false);
+      setErr("納品明細を1つ以上入力してください");
+      return;
+    }
+
+    const totalCount = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const firstProductName = normalizedItems[0]?.product_name || null;
+
     const { data, error } = await supabase
       .from("orders")
       .update({
         final_delivery_date: draftDeliveryDate || null,
-        delivery_count: draftDeliveryCount,
-        product_name: draftProductName || null,
+        delivery_count: totalCount,
+        product_name: firstProductName,
         invoice_to: draftInvoiceTo || null,
       })
       .eq("id", order.id)
@@ -289,18 +415,57 @@ export default function OrderDetailPage() {
       )
       .single();
 
-    setSavingDelivery(false);
-
     if (error) {
+      setSavingDelivery(false);
       setErr(`案件メタ情報の保存に失敗しました: ${error.message}`);
       return;
     }
 
+    const { error: deleteError } = await supabase
+      .from("order_items")
+      .delete()
+      .eq("order_id", order.id);
+
+    if (deleteError) {
+      setSavingDelivery(false);
+      setErr(`納品明細の更新に失敗しました: ${deleteError.message}`);
+      return;
+    }
+
+    const { data: insertedItems, error: insertError } = await supabase
+      .from("order_items")
+      .insert(
+        normalizedItems.map((item) => ({
+          order_id: order.id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))
+      )
+      .select("id,order_id,product_name,quantity,unit_price,created_at");
+
+    setSavingDelivery(false);
+
+    if (insertError) {
+      setErr(`納品明細の保存に失敗しました: ${insertError.message}`);
+      return;
+    }
+
     const updatedOrder = data as Order;
+    const rows = (insertedItems ?? []) as OrderItem[];
 
     setOrder(updatedOrder);
     syncDeliveryDraft(updatedOrder);
-    setSaveMessage("案件メタ情報を保存しました");
+    setOrderItems(
+      rows.map((row) => ({
+        localId: row.id,
+        product_name: row.product_name,
+        quantity: row.quantity,
+        unit_price: row.unit_price,
+      }))
+    );
+
+    setSaveMessage("案件メタ情報と納品明細を保存しました");
   };
 
   const toggleDeliverableTag = (tag: string) => {
@@ -342,6 +507,7 @@ export default function OrderDetailPage() {
         canvas.height = Math.round(img.height * scale);
 
         const ctx = canvas.getContext("2d");
+
         if (!ctx) {
           resolve(file);
           return;
@@ -1036,10 +1202,7 @@ export default function OrderDetailPage() {
                   onInput={(e) => {
                     const target = e.currentTarget;
                     target.style.height = "46px";
-                    target.style.height = `${Math.min(
-                      target.scrollHeight,
-                      120
-                    )}px`;
+                    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
                   }}
                   onBlur={() => {
                     updateTyping(false);
@@ -1069,231 +1232,246 @@ export default function OrderDetailPage() {
               </div>
             </section>
 
+            <section className="workPanel">
+              <div className="workTop">
+                <div className="storeNameBlock">
+                  <span>使用店舗名</span>
+                  <strong>{order.store_name || "店舗名未入力"}</strong>
+                </div>
 
+                <button
+                  type="button"
+                  className="largeStatusBtn"
+                  style={{
+                    background: statusStyle.bg,
+                    color: statusStyle.text,
+                  }}
+                  onClick={updateOrderStatus}
+                >
+                  {currentStatus}
+                </button>
+              </div>
 
+              <div className="workCard">
+                <div className="metaBox">
+                  <div className="metaTopRow">
+                    <label className="metaItem">
+                      <span>請求先</span>
+                      <select
+                        value={draftInvoiceTo}
+                        onChange={(e) => {
+                          setDraftInvoiceTo(e.target.value);
+                          setSaveMessage("");
+                        }}
+                      >
+                        {INVOICE_TO_OPTIONS.map((name) => (
+                          <option key={name || "empty"} value={name}>
+                            {name || "未設定"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
+                    <label className="metaItem">
+                      <span>最終納品日</span>
+                      <input
+                        type="date"
+                        value={draftDeliveryDate}
+                        onChange={(e) => {
+                          setDraftDeliveryDate(e.target.value);
+                          setSaveMessage("");
+                        }}
+                      />
+                    </label>
 
+                    <label className="metaItem">
+                      <span>担当デザイナー</span>
+                      <select
+                        value={order.designer_name || ""}
+                        onChange={(e) => updateDesignerName(e.target.value)}
+                      >
+                        {DESIGNER_OPTIONS.map((name) => (
+                          <option key={name || "empty"} value={name}>
+                            {name || "未設定"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
 
-            
-<section className="workPanel">
-  <div className="workTop">
-    <div className="storeNameBlock">
-      <span>使用店舗名</span>
-      <strong>{order.store_name || "店舗名未入力"}</strong>
-    </div>
+                  <div className="itemBox">
+                    <div className="itemBoxHead">
+                      <strong>納品明細</strong>
+                      <span>合計納品数：{totalDeliveryCount}</span>
+                    </div>
 
-    <button
-      type="button"
-      className="largeStatusBtn"
-      style={{
-        background: statusStyle.bg,
-        color: statusStyle.text,
-      }}
-      onClick={updateOrderStatus}
-    >
-      {currentStatus}
-    </button>
-  </div>
+                    <div className="itemRows">
+                      {orderItems.map((item) => (
+                        <div className="itemRow" key={item.localId}>
+                          <label>
+                            <span>商品名</span>
+                            <select
+                              value={item.product_name}
+                              onChange={(e) =>
+                                updateItem(item.localId, "product_name", e.target.value)
+                              }
+                            >
+                              {PRODUCT_OPTIONS.map((name) => (
+                                <option key={name || "empty"} value={name}>
+                                  {name || "未設定"}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-  <div className="workCard">
-    <div className="metaBox">
-      <div className="metaTopRow">
-        <label className="metaItem">
-          <span>商品名</span>
-          <select
-            value={draftProductName}
-            onChange={(e) => {
-              setDraftProductName(e.target.value);
-              setSaveMessage("");
-            }}
-          >
-            {PRODUCT_OPTIONS.map((name) => (
-              <option key={name || "empty"} value={name}>
-                {name || "未設定"}
-              </option>
-            ))}
-          </select>
-        </label>
+                          <label className="quantityLabel">
+                            <span>数量</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateItem(item.localId, "quantity", e.target.value)
+                              }
+                            />
+                          </label>
 
-        <label className="metaItem">
-          <span>請求先</span>
-          <select
-            value={draftInvoiceTo}
-            onChange={(e) => {
-              setDraftInvoiceTo(e.target.value);
-              setSaveMessage("");
-            }}
-          >
-            {INVOICE_TO_OPTIONS.map((name) => (
-              <option key={name || "empty"} value={name}>
-                {name || "未設定"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+                          <button
+                            type="button"
+                            className="removeItemBtn"
+                            onClick={() => removeOrderItem(item.localId)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
 
-      <div className="metaBottomRow">
-        <label className="metaItem dateItem">
-          <span>最終納品日</span>
-          <input
-            type="date"
-            value={draftDeliveryDate}
-            onChange={(e) => {
-              setDraftDeliveryDate(e.target.value);
-              setSaveMessage("");
-            }}
-          />
-        </label>
+                    <button type="button" className="addItemBtn" onClick={addOrderItem}>
+                      ＋ 明細を追加
+                    </button>
+                  </div>
 
-        <label className="metaItem countItem">
-          <span>納品数</span>
-          <input
-            type="number"
-            min="0"
-            value={draftDeliveryCount}
-            onChange={(e) => {
-              setDraftDeliveryCount(Number(e.target.value || 0));
-              setSaveMessage("");
-            }}
-          />
-        </label>
+                  <button
+                    type="button"
+                    className="saveMetaBtn"
+                    onClick={saveDeliveryInfo}
+                    disabled={savingDelivery}
+                  >
+                    {savingDelivery ? "保存中" : "保存"}
+                  </button>
+                </div>
 
-        <label className="metaItem designerItem">
-          <span>担当デザイナー</span>
-          <select
-            value={order.designer_name || ""}
-            onChange={(e) => updateDesignerName(e.target.value)}
-          >
-            {DESIGNER_OPTIONS.map((name) => (
-              <option key={name || "empty"} value={name}>
-                {name || "未設定"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+                <div className="divider" />
 
-      <button
-        type="button"
-        className="saveMetaBtn"
-        onClick={saveDeliveryInfo}
-        disabled={savingDelivery}
-      >
-        {savingDelivery ? "保存中" : "保存"}
-      </button>
-    </div>
+                {saveMessage && <div className="saveMessage">{saveMessage}</div>}
 
-    <div className="divider" />
+                <div className="uploadBox">
+                  <div
+                    className={`dropArea ${isDragOver ? "isDragOver" : ""}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(true);
+                    }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) setDeliverableFile(file);
+                    }}
+                  >
+                    <label htmlFor="deliverable-upload" className="dropLabel">
+                      <input
+                        id="deliverable-upload"
+                        type="file"
+                        onChange={(e) => {
+                          setDeliverableFile(e.target.files?.[0] || null);
+                          e.currentTarget.value = "";
+                        }}
+                      />
 
-    {saveMessage && <div className="saveMessage">{saveMessage}</div>}
+                      <div className="dropIcon" aria-hidden="true">
+                        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M427.258,244.249c0.204-2.604,0.338-5.228,0.338-7.885c0-55.233-44.775-100.008-100.008-100.008c-17.021,0-33.042,4.264-47.072,11.764c-15.136-42.633-55.81-73.172-103.633-73.172c-60.729,0-109.96,49.231-109.96,109.96c0,11.416,1.741,22.425,4.97,32.778C29.804,234.254,0,275.238,0,323.21c0,62.627,50.769,113.396,113.396,113.396h292.642c3.021,0.284,6.079,0.445,9.175,0.445c53.454,0,96.788-43.333,96.788-96.788C512,290.891,475.024,250.183,427.258,244.249z M311.709,296.227h-20.452c-6.044,0-10.989,4.945-10.989,10.99v58.074c0,6.044-4.946,10.99-10.989,10.99h-26.558c-6.044,0-10.989-4.946-10.989-10.99v-58.074c0-6.044-4.945-10.99-10.989-10.99h-20.452c-6.044,0-8-3.94-4.347-8.755l53.414-70.405c3.652-4.816,9.631-4.816,13.284,0l53.414,70.405C319.709,292.288,317.753,296.227,311.709,296.227z" />
+                        </svg>
+                      </div>
 
-    <div className="uploadBox">
-      <div
-        className={`dropArea ${isDragOver ? "isDragOver" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragOver(false);
-          const file = e.dataTransfer.files?.[0];
-          if (file) setDeliverableFile(file);
-        }}
-      >
-        <label htmlFor="deliverable-upload" className="dropLabel">
-          <input
-            id="deliverable-upload"
-            type="file"
-            onChange={(e) => {
-              setDeliverableFile(e.target.files?.[0] || null);
-              e.currentTarget.value = "";
-            }}
-          />
+                      <strong>ドラッグ＆ドロップでアップロード</strong>
+                      <span>クリックしてファイル選択もできます</span>
+                    </label>
 
-          <div className="dropIcon" aria-hidden="true">
-            <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-              <path d="M427.258,244.249c0.204-2.604,0.338-5.228,0.338-7.885c0-55.233-44.775-100.008-100.008-100.008c-17.021,0-33.042,4.264-47.072,11.764c-15.136-42.633-55.81-73.172-103.633-73.172c-60.729,0-109.96,49.231-109.96,109.96c0,11.416,1.741,22.425,4.97,32.778C29.804,234.254,0,275.238,0,323.21c0,62.627,50.769,113.396,113.396,113.396h292.642c3.021,0.284,6.079,0.445,9.175,0.445c53.454,0,96.788-43.333,96.788-96.788C512,290.891,475.024,250.183,427.258,244.249z M311.709,296.227h-20.452c-6.044,0-10.989,4.945-10.989,10.99v58.074c0,6.044-4.946,10.99-10.989,10.99h-26.558c-6.044,0-10.989-4.946-10.989-10.99v-58.074c0-6.044-4.945-10.99-10.989-10.99h-20.452c-6.044,0-8-3.94-4.347-8.755l53.414-70.405c3.652-4.816,9.631-4.816,13.284,0l53.414,70.405C319.709,292.288,317.753,296.227,311.709,296.227z" />
-            </svg>
-          </div>
+                    {deliverableFile && (
+                      <div className="selectedFile">
+                        {deliverablePreviewUrl ? (
+                          <img src={deliverablePreviewUrl} alt="選択ファイル" />
+                        ) : (
+                          <div className="fileIcon">FILE</div>
+                        )}
 
-          <strong>ドラッグ＆ドロップでアップロード</strong>
-          <span>クリックしてファイル選択もできます</span>
-        </label>
+                        <div className="selectedFileInfo">
+                          <strong>{deliverableFile.name}</strong>
+                          <small>{deliverableFile.type || "file"}</small>
+                        </div>
 
-        {deliverableFile && (
-          <div className="selectedFile">
-            {deliverablePreviewUrl ? (
-              <img src={deliverablePreviewUrl} alt="選択ファイル" />
-            ) : (
-              <div className="fileIcon">FILE</div>
-            )}
+                        <button
+                          type="button"
+                          className="removeFileButton"
+                          onClick={() => setDeliverableFile(null)}
+                          aria-label="ファイルを外す"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-            <div className="selectedFileInfo">
-              <strong>{deliverableFile.name}</strong>
-              <small>{deliverableFile.type || "file"}</small>
-            </div>
+                  <div className="workForm">
+                    <div className="tagList">
+                      {TAG_OPTIONS.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={deliverableTags.includes(tag) ? "tag active" : "tag"}
+                          onClick={() => toggleDeliverableTag(tag)}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
 
-            <button
-              type="button"
-              className="removeFileButton"
-              onClick={() => setDeliverableFile(null)}
-              aria-label="ファイルを外す"
-            >
-              ×
-            </button>
-          </div>
-        )}
-      </div>
+                    <textarea
+                      className="commentInput"
+                      value={publicComment}
+                      onChange={(e) => setPublicComment(e.target.value)}
+                      placeholder="公開コメント"
+                    />
 
-      <div className="workForm">
-        <div className="tagList">
-          {TAG_OPTIONS.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              className={deliverableTags.includes(tag) ? "tag active" : "tag"}
-              onClick={() => toggleDeliverableTag(tag)}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
+                    <input
+                      className="hashInput"
+                      value={hashTagText}
+                      onChange={(e) => setHashTagText(e.target.value)}
+                      placeholder="ハッシュタグ 例：金沢 求人 夏 イベント"
+                    />
 
-        <textarea
-          className="commentInput"
-          value={publicComment}
-          onChange={(e) => setPublicComment(e.target.value)}
-          placeholder="公開コメント"
-        />
+                    <button
+                      type="button"
+                      className="saveWorkBtn"
+                      onClick={saveDeliverable}
+                      disabled={savingDeliverable}
+                    >
+                      {savingDeliverable ? "アップロード中..." : "制作事例をアップロード"}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-        <input
-          className="hashInput"
-          value={hashTagText}
-          onChange={(e) => setHashTagText(e.target.value)}
-          placeholder="ハッシュタグ 例：金沢 求人 夏 イベント"
-        />
-
-        <button
-          type="button"
-          className="saveWorkBtn"
-          onClick={saveDeliverable}
-          disabled={savingDeliverable}
-        >
-          {savingDeliverable ? "アップロード中..." : "制作事例をアップロード"}
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div className="orderHint">
-    <strong>オーダーID：{order.display_id || "未採番"}</strong>
-    <br />
-    公式LINEでこの案件を呼び出す場合は、#から始まるオーダーIDを入力してください。
-  </div>
-</section>
+              <div className="orderHint">
+                <strong>オーダーID：{order.display_id || "未採番"}</strong>
+                <br />
+                公式LINEでこの案件を呼び出す場合は、#から始まるオーダーIDを入力してください。
+              </div>
+            </section>
 
             {err && <div className="errorBox">{err}</div>}
           </>
@@ -1662,19 +1840,13 @@ export default function OrderDetailPage() {
 
         .metaBox {
           display: grid;
-          gap: 34px;
+          gap: 28px;
         }
 
         .metaTopRow {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 42px;
-        }
-
-        .metaBottomRow {
-          display: grid;
-          grid-template-columns: 1fr 0.8fr 1.1fr;
-          gap: 26px;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 24px;
           align-items: center;
         }
 
@@ -1682,40 +1854,103 @@ export default function OrderDetailPage() {
           display: grid;
           grid-template-columns: auto 1fr;
           align-items: center;
-          gap: 18px;
+          gap: 16px;
           min-width: 0;
         }
 
-        .metaItem span {
+        .metaItem span,
+        .itemRow label span {
           font-weight: 950;
-          font-size: 17px;
+          font-size: 15px;
           white-space: nowrap;
         }
 
         .metaItem select,
-        .metaItem input {
+        .metaItem input,
+        .itemRow select,
+        .itemRow input {
           width: 100%;
           height: 48px;
           border: 1.8px solid #999;
           border-radius: 999px;
           background: #ffffff;
-          padding: 0 22px;
+          padding: 0 20px;
           font-size: 16px;
           font-weight: 900;
           color: #111827;
           box-sizing: border-box;
         }
 
-        .dateItem,
-        .countItem {
+        .itemBox {
           background: #f8fafc;
-          padding: 10px;
+          border-radius: 18px;
+          padding: 18px;
+          display: grid;
+          gap: 14px;
+        }
+
+        .itemBoxHead {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .itemBoxHead strong {
+          font-size: 17px;
+          font-weight: 950;
+        }
+
+        .itemBoxHead span {
+          font-size: 13px;
+          font-weight: 950;
+          color: #475569;
+        }
+
+        .itemRows {
+          display: grid;
+          gap: 10px;
+        }
+
+        .itemRow {
+          display: grid;
+          grid-template-columns: 1fr 160px 76px;
+          gap: 10px;
+          align-items: end;
+        }
+
+        .itemRow label {
+          display: grid;
+          gap: 6px;
+        }
+
+        .removeItemBtn {
+          height: 48px;
+          border: none;
+          border-radius: 999px;
+          background: #ef4444;
+          color: #ffffff;
+          font-size: 12px;
+          font-weight: 950;
+          cursor: pointer;
+        }
+
+        .addItemBtn {
+          width: 160px;
+          height: 38px;
+          border: 1px solid #cbd5e1;
+          border-radius: 999px;
+          background: #ffffff;
+          color: #111827;
+          font-size: 13px;
+          font-weight: 950;
+          cursor: pointer;
         }
 
         .saveMetaBtn {
           justify-self: end;
           width: 130px;
-          height: 38px;
+          height: 42px;
           border: none;
           border-radius: 999px;
           background: #111827;
@@ -1723,7 +1958,6 @@ export default function OrderDetailPage() {
           font-size: 13px;
           font-weight: 950;
           cursor: pointer;
-          margin-top: -12px;
         }
 
         .divider {
@@ -1771,8 +2005,17 @@ export default function OrderDetailPage() {
         }
 
         .dropIcon {
-          font-size: 46px;
+          width: 72px;
+          height: 72px;
           color: #7c6bff;
+          margin-bottom: 16px;
+        }
+
+        .dropIcon svg {
+          width: 100%;
+          height: 100%;
+          display: block;
+          fill: currentColor;
         }
 
         .dropLabel strong {
@@ -1814,6 +2057,12 @@ export default function OrderDetailPage() {
           font-weight: 950;
         }
 
+        .selectedFileInfo {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
         .selectedFile strong {
           display: block;
           font-size: 14px;
@@ -1827,11 +2076,11 @@ export default function OrderDetailPage() {
           font-weight: 800;
         }
 
-        .selectedFile button {
+        .removeFileButton {
           border: none;
           background: transparent;
-          color: #fb7185;
-          font-size: 32px;
+          color: #ff5f5f;
+          font-size: 28px;
           cursor: pointer;
         }
 
@@ -2066,37 +2315,6 @@ export default function OrderDetailPage() {
             display: none !important;
           }
         }
-
-        .dropIcon {
-  width: 60px;
-  height: 60px;
-  color: #7c6bff;
-  margin-bottom: 14px;
-}
-
-.dropIcon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  fill: currentColor;
-}
-
-.selectedFileInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.removeFileButton {
-  margin-left: auto;
-  border: none;
-  background: transparent;
-  color: #ff5f5f;
-  font-size: 28px;
-  cursor: pointer;
-}
-
-
       `}</style>
     </div>
   );
