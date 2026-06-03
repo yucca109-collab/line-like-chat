@@ -80,14 +80,35 @@ const PRODUCT_OPTIONS = [
   "GHメイン/サブ",
   "駅ちかメイン(PC/SP)",
   "駅ちかスライダー",
-  "その他",
-  "バナー",
+  "その他バナー",
   "レタッチ",
   "印刷物(1面)",
   "動画",
 ] as const;
 
 const PRODUCT_TAG_OPTIONS = PRODUCT_OPTIONS.filter(Boolean) as string[];
+
+const PRICE_MAP: Record<string, number> = {
+  "PCスライド": 5000,
+  "SPスライド": 2000,
+  "フリー(PC/SP)": 1000,
+  "ロゴ(全媒体)": 1000,
+  "背景(PC/SP)": 1000,
+  "フリスペ(縦長)": 5000,
+  "グラビア3種": 1000,
+  "ヘブン商品系": 3000,
+  "GHアピール(PC/SP)": 3000,
+  "GH大画像": 2000,
+  "GHメイン/サブ": 1000,
+  "駅ちかメイン(PC/SP)": 5000,
+  "駅ちかスライダー": 2000,
+  "その他バナー": 3000,
+  "レタッチ": 1000,
+  "印刷物(1面)": 5000,
+  "動画": 5000,
+};
+
+
 
 const INVOICE_TO_OPTIONS = ["", "〇〇〇〇株式会社", "1Best株式会社", "その他"] as const;
 
