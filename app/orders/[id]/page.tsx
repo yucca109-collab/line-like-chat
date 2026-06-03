@@ -108,11 +108,12 @@ const PRICE_MAP: Record<string, number> = {
   "動画": 5000,
 };
 
-
-
-const INVOICE_TO_OPTIONS = ["", "〇〇〇〇株式会社", "1Best株式会社", "その他"] as const;
-
-
+const INVOICE_TO_OPTIONS = [
+  "",
+  "〇〇〇〇株式会社",
+  "1Best株式会社",
+  "その他",
+] as const;
 
 const createBlankItem = (): OrderItemDraft => ({
   localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -145,7 +146,12 @@ const getStatusColor = (displayStatus: DisplayStatus) => {
   if (displayStatus === "新規") return { bg: "#f59e0b", text: "#ffffff" };
   if (displayStatus === "納品済み") return { bg: "#0d83ff", text: "#ffffff" };
   if (displayStatus === "アーカイブ") return { bg: "#6b7280", text: "#ffffff" };
+
   return { bg: "#3b82f6", text: "#ffffff" };
+};
+
+const yen = (amount: number) => {
+  return amount.toLocaleString("ja-JP");
 };
 
 export default function OrderDetailPage() {
@@ -159,7 +165,9 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [orderItems, setOrderItems] = useState<OrderItemDraft[]>([createBlankItem()]);
+  const [orderItems, setOrderItems] = useState<OrderItemDraft[]>([
+    createBlankItem(),
+  ]);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -195,7 +203,10 @@ export default function OrderDetailPage() {
   }, [files]);
 
   const deliverablePreviewUrl = useMemo(() => {
-    if (!deliverableFile || !deliverableFile.type.startsWith("image/")) return "";
+    if (!deliverableFile || !deliverableFile.type.startsWith("image/")) {
+      return "";
+    }
+
     return URL.createObjectURL(deliverableFile);
   }, [deliverableFile]);
 
@@ -203,6 +214,15 @@ export default function OrderDetailPage() {
     return orderItems.reduce((sum, item) => {
       if (!item.product_name) return sum;
       return sum + Number(item.quantity || 0);
+    }, 0);
+  }, [orderItems]);
+
+  const totalAmount = useMemo(() => {
+    return orderItems.reduce((sum, item) => {
+      if (!item.product_name) return sum;
+
+      const price = item.unit_price ?? PRICE_MAP[item.product_name] ?? 0;
+      return sum + price * Number(item.quantity || 0);
     }, 0);
   }, [orderItems]);
 
@@ -223,6 +243,20 @@ export default function OrderDetailPage() {
     setDraftInvoiceTo(targetOrder.invoice_to || "");
   };
 
+  const syncProductTagsFromItems = (items: OrderItemDraft[]) => {
+    const productTags = items
+      .map((item) => item.product_name)
+      .filter(Boolean);
+
+    setDeliverableTags((prevTags) => {
+      const customTags = prevTags.filter(
+        (tag) => !PRODUCT_TAG_OPTIONS.includes(tag)
+      );
+
+      return [...new Set([...productTags, ...customTags])];
+    });
+  };
+
   const loadOrderItems = async () => {
     const { data, error } = await supabase
       .from("order_items")
@@ -238,18 +272,21 @@ export default function OrderDetailPage() {
     const rows = (data ?? []) as OrderItem[];
 
     if (rows.length === 0) {
-      setOrderItems([createBlankItem()]);
+      const blank = [createBlankItem()];
+      setOrderItems(blank);
+      syncProductTagsFromItems(blank);
       return;
     }
 
-    setOrderItems(
-      rows.map((row) => ({
-        localId: row.id,
-        product_name: row.product_name,
-        quantity: row.quantity,
-        unit_price: row.unit_price,
-      }))
-    );
+    const drafts = rows.map((row) => ({
+      localId: row.id,
+      product_name: row.product_name,
+      quantity: row.quantity,
+      unit_price: row.unit_price ?? PRICE_MAP[row.product_name] ?? 0,
+    }));
+
+    setOrderItems(drafts);
+    syncProductTagsFromItems(drafts);
   };
 
   const loadAll = async () => {
@@ -332,7 +369,10 @@ export default function OrderDetailPage() {
     const currentStatus = getDisplayStatus(order.status);
     const nextStatus = getNextStatus(currentStatus);
 
-    const updatePayload: Partial<Order> = {
+    const updatePayload: {
+      status: DisplayStatus;
+      final_delivery_date?: string;
+    } = {
       status: nextStatus,
     };
 
@@ -355,44 +395,45 @@ export default function OrderDetailPage() {
     setOrder((prev) => (prev ? { ...prev, ...updatePayload } : prev));
   };
 
-const updateItem = (
-  localId: string,
-  field: "product_name" | "quantity" | "unit_price",
-  value: string | number | null
-) => {
-  setSaveMessage("");
+  const updateItem = (
+    localId: string,
+    field: "product_name" | "quantity" | "unit_price",
+    value: string | number | null
+  ) => {
+    setSaveMessage("");
 
-  setOrderItems((prev) =>
-    prev.map((item) => {
-      if (item.localId !== localId) return item;
+    setOrderItems((prev) => {
+      const nextItems = prev.map((item) => {
+        if (item.localId !== localId) return item;
 
-      if (field === "quantity") {
-        return { ...item, quantity: Math.max(0, Number(value || 0)) };
-      }
+        if (field === "quantity") {
+          return {
+            ...item,
+            quantity: Math.max(0, Number(value || 0)),
+          };
+        }
 
-      if (field === "unit_price") {
+        if (field === "unit_price") {
+          return {
+            ...item,
+            unit_price: value === "" || value === null ? null : Number(value),
+          };
+        }
+
+        const nextProductName = String(value || "");
+        const nextUnitPrice = PRICE_MAP[nextProductName] ?? 0;
+
         return {
           ...item,
-          unit_price: value === "" || value === null ? null : Number(value),
+          product_name: nextProductName,
+          unit_price: nextUnitPrice,
         };
-      }
-
-      const nextProductName = String(value || "");
-
-      setDeliverableTags((prevTags) => {
-        const customTags = prevTags.filter(
-          (tag) => !PRODUCT_TAG_OPTIONS.includes(tag)
-        );
-
-        return nextProductName
-          ? [...new Set([nextProductName, ...customTags])]
-          : customTags;
       });
 
-      return { ...item, product_name: nextProductName };
-    })
-  );
-};
+      syncProductTagsFromItems(nextItems);
+      return nextItems;
+    });
+  };
 
   const addOrderItem = () => {
     setOrderItems((prev) => [...prev, createBlankItem()]);
@@ -400,11 +441,11 @@ const updateItem = (
 
   const removeOrderItem = (localId: string) => {
     setOrderItems((prev) => {
-      if (prev.length <= 1) {
-        return [createBlankItem()];
-      }
+      const nextItems =
+        prev.length <= 1 ? [createBlankItem()] : prev.filter((item) => item.localId !== localId);
 
-      return prev.filter((item) => item.localId !== localId);
+      syncProductTagsFromItems(nextItems);
+      return nextItems;
     });
   };
 
@@ -419,7 +460,7 @@ const updateItem = (
       .map((item) => ({
         product_name: item.product_name.trim(),
         quantity: Number(item.quantity || 0),
-        unit_price: item.unit_price,
+        unit_price: item.unit_price ?? PRICE_MAP[item.product_name] ?? 0,
       }))
       .filter((item) => item.product_name && item.quantity > 0);
 
@@ -429,7 +470,11 @@ const updateItem = (
       return;
     }
 
-    const totalCount = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalCount = normalizedItems.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
+
     const firstProductName = normalizedItems[0]?.product_name || null;
 
     const { data, error } = await supabase
@@ -470,7 +515,10 @@ const updateItem = (
           order_id: order.id,
           product_name: item.product_name,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price:
+            item.unit_price ??
+            PRICE_MAP[item.product_name] ??
+            0,
         }))
       )
       .select("id,order_id,product_name,quantity,unit_price,created_at");
@@ -485,16 +533,17 @@ const updateItem = (
     const updatedOrder = data as Order;
     const rows = (insertedItems ?? []) as OrderItem[];
 
+    const nextItems = rows.map((row) => ({
+      localId: row.id,
+      product_name: row.product_name,
+      quantity: row.quantity,
+      unit_price: row.unit_price ?? PRICE_MAP[row.product_name] ?? 0,
+    }));
+
     setOrder(updatedOrder);
     syncDeliveryDraft(updatedOrder);
-    setOrderItems(
-      rows.map((row) => ({
-        localId: row.id,
-        product_name: row.product_name,
-        quantity: row.quantity,
-        unit_price: row.unit_price,
-      }))
-    );
+    setOrderItems(nextItems);
+    syncProductTagsFromItems(nextItems);
 
     setSaveMessage("案件メタ情報と納品明細を保存しました");
   };
@@ -1334,48 +1383,73 @@ const updateItem = (
                     <div className="itemBoxHead">
                       <strong>納品明細</strong>
                       <span>合計納品数：{totalDeliveryCount}</span>
+                      <span>合計金額：¥{yen(totalAmount)}</span>
                     </div>
 
                     <div className="itemRows">
-                      {orderItems.map((item) => (
-                        <div className="itemRow" key={item.localId}>
-                          <label>
-                            <span>商品名</span>
-                            <select
-                              value={item.product_name}
-                              onChange={(e) =>
-                                updateItem(item.localId, "product_name", e.target.value)
-                              }
+                      {orderItems.map((item) => {
+                        const unitPrice =
+                          item.unit_price ?? PRICE_MAP[item.product_name] ?? 0;
+                        const subtotal = unitPrice * Number(item.quantity || 0);
+
+                        return (
+                          <div className="itemRow" key={item.localId}>
+                            <label>
+                              <span>商品名</span>
+                              <select
+                                value={item.product_name}
+                                onChange={(e) =>
+                                  updateItem(
+                                    item.localId,
+                                    "product_name",
+                                    e.target.value
+                                  )
+                                }
+                              >
+                                {PRODUCT_OPTIONS.map((name) => (
+                                  <option key={name || "empty"} value={name}>
+                                    {name || "未設定"}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="quantityLabel">
+                              <span>数量</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateItem(
+                                    item.localId,
+                                    "quantity",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <div className="priceDisplay">
+                              <span>単価</span>
+                              <strong>¥{yen(unitPrice)}</strong>
+                            </div>
+
+                            <div className="priceDisplay">
+                              <span>小計</span>
+                              <strong>¥{yen(subtotal)}</strong>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="removeItemBtn"
+                              onClick={() => removeOrderItem(item.localId)}
                             >
-                              {PRODUCT_OPTIONS.map((name) => (
-                                <option key={name || "empty"} value={name}>
-                                  {name || "未設定"}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="quantityLabel">
-                            <span>数量</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updateItem(item.localId, "quantity", e.target.value)
-                              }
-                            />
-                          </label>
-
-                          <button
-                            type="button"
-                            className="removeItemBtn"
-                            onClick={() => removeOrderItem(item.localId)}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      ))}
+                              削除
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <button type="button" className="addItemBtn" onClick={addOrderItem}>
@@ -1463,7 +1537,9 @@ const updateItem = (
                         <button
                           key={tag}
                           type="button"
-                          className={deliverableTags.includes(tag) ? "tag active" : "tag"}
+                          className={
+                            deliverableTags.includes(tag) ? "tag active" : "tag"
+                          }
                           onClick={() => toggleDeliverableTag(tag)}
                         >
                           {tag}
@@ -1925,6 +2001,7 @@ const updateItem = (
           justify-content: space-between;
           align-items: center;
           gap: 12px;
+          flex-wrap: wrap;
         }
 
         .itemBoxHead strong {
@@ -1945,7 +2022,7 @@ const updateItem = (
 
         .itemRow {
           display: grid;
-          grid-template-columns: 1fr 160px 76px;
+          grid-template-columns: 1fr 120px 120px 120px 76px;
           gap: 10px;
           align-items: end;
         }
@@ -1953,6 +2030,31 @@ const updateItem = (
         .itemRow label {
           display: grid;
           gap: 6px;
+        }
+
+        .priceDisplay {
+          height: 48px;
+          border-radius: 999px;
+          background: #ffffff;
+          border: 1.8px solid #d1d5db;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 0 14px;
+          box-sizing: border-box;
+        }
+
+        .priceDisplay span {
+          font-size: 11px;
+          font-weight: 950;
+          color: #64748b;
+        }
+
+        .priceDisplay strong {
+          font-size: 13px;
+          font-weight: 950;
+          color: #111827;
         }
 
         .removeItemBtn {
