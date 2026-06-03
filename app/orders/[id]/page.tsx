@@ -664,6 +664,8 @@ export default function OrderDetailPage() {
         public_comment: publicComment || null,
         store_name: order.store_name || null,
         order_title: order.title || null,
+
+        designer_name: order.designer_name || null,
       });
 
       if (worksError) {
