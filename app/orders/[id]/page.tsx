@@ -1438,7 +1438,7 @@ const updateItem = (
 
                   <div className="workForm">
                     <div className="tagList">
-                      {TAG_OPTIONS.map((tag) => (
+                      {PRODUCT_TAG_OPTIONS.map((tag) => (
                         <button
                           key={tag}
                           type="button"
