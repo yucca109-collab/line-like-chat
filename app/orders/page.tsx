@@ -41,6 +41,12 @@ type OrderWithMeta = OrderRow & {
   display_status: DisplayStatus;
 };
 
+type MonthlyGroup = {
+  month: string;
+  orders: OrderWithMeta[];
+  unreadCount: number;
+};
+
 const DESIGNER_OPTIONS = ["", "吉本", "ハマダユカ"] as const;
 
 export default function OrdersPage() {
@@ -89,6 +95,11 @@ export default function OrdersPage() {
   const formatDate = (value: string | null) => {
     if (!value) return "まだありません";
     return new Date(value).toLocaleString("ja-JP");
+  };
+
+  const getOrderMonth = (createdAt: string | null) => {
+    if (!createdAt) return "月未設定";
+    return String(createdAt).slice(0, 7);
   };
 
   const load = async () => {
@@ -436,6 +447,103 @@ export default function OrdersPage() {
     return list;
   }, [orders, searchKeyword, statusFilter, sortMode]);
 
+  const monthlyGroups = useMemo<MonthlyGroup[]>(() => {
+    const map = new Map<string, OrderWithMeta[]>();
+
+    for (const order of filteredOrders) {
+      const month = getOrderMonth(order.created_at);
+      const list = map.get(month) ?? [];
+      list.push(order);
+      map.set(month, list);
+    }
+
+    return Array.from(map.entries())
+      .map(([month, groupOrders]) => ({
+        month,
+        orders: groupOrders,
+        unreadCount: groupOrders.reduce((sum, order) => sum + order.unread_count, 0),
+      }))
+      .sort((a, b) => {
+        if (sortMode === "古い順") return a.month.localeCompare(b.month);
+        return b.month.localeCompare(a.month);
+      });
+  }, [filteredOrders, sortMode]);
+
+  const renderOrderCard = (o: OrderWithMeta) => {
+    const statusStyle = getStatusColor(o.display_status);
+
+    return (
+      <article
+        key={o.id}
+        className={`orderCard ${o.unread ? "isUnread" : ""}`}
+        onClick={() => router.push(`/orders/${o.id}`)}
+      >
+        <div className="infoArea">
+          <div>
+            <div className="label">依頼案件名</div>
+            <div className="mainTitle">{o.title || "未入力"}</div>
+          </div>
+
+          <div>
+            <div className="label">使用店舗名</div>
+            <div className="storeTitle">{o.store_name || "未入力"}</div>
+          </div>
+
+          <div className="metaLine">
+            <span>オーダーID:{o.display_id || "未採番"}</span>
+            <span>依頼者名:{o.contact_name || "未入力"}</span>
+            <span>作成者:{o.created_by_name || "不明"}</span>
+            <span>最新:{formatDate(o.latest_message_at)}</span>
+          </div>
+        </div>
+
+        <div className="actionArea" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="confirmBtn"
+            onClick={() => router.push(`/orders/${o.id}`)}
+          >
+            案件を確認する
+          </button>
+
+          <div className="adminControls">
+            <span className="designerText">担当デザイナー</span>
+
+            <select
+              value={o.designer_name || ""}
+              onChange={(e) => updateDesignerName(o.id, e.target.value)}
+              className="designerSelect"
+            >
+              {DESIGNER_OPTIONS.map((name) => (
+                <option key={name || "empty"} value={name}>
+                  {name || "未設定"}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className="statusBtn"
+              style={{
+                background: statusStyle.bg,
+                color: statusStyle.text,
+              }}
+              onClick={() => updateOrderStatus(o.id, getNextStatus(o.display_status))}
+            >
+              {o.display_status}
+            </button>
+          </div>
+        </div>
+
+        {o.unread_count > 0 && (
+          <div className="unreadBadge">
+            {o.unread_count > 99 ? "99+" : o.unread_count}
+          </div>
+        )}
+      </article>
+    );
+  };
+
   return (
     <div className="page">
       <div className="wrap">
@@ -514,82 +622,47 @@ export default function OrdersPage() {
           <div className="emptyBox">条件に合う案件がありません</div>
         )}
 
-        <section className="orderList">
-          {filteredOrders.map((o) => {
-            const statusStyle = getStatusColor(o.display_status);
+        {!loading && filteredOrders.length > 0 && (
+          <section className="monthAccordionList">
+            {monthlyGroups.map((group, index) => {
+              const newCount = group.orders.filter((o) => o.display_status === "新規").length;
+              const progressCount = group.orders.filter((o) => o.display_status === "進行中").length;
+              const doneCount = group.orders.filter((o) => o.display_status === "納品済み").length;
 
-            return (
-              <article
-                key={o.id}
-                className={`orderCard ${o.unread ? "isUnread" : ""}`}
-                onClick={() => router.push(`/orders/${o.id}`)}
-              >
-                <div className="infoArea">
-                  <div>
-                    <div className="label">依頼案件名</div>
-                    <div className="mainTitle">{o.title || "未入力"}</div>
+              return (
+                <details
+                  key={group.month}
+                  className={`monthAccordion ${group.unreadCount > 0 ? "hasUnread" : ""}`}
+                  open={index === 0 || group.unreadCount > 0}
+                >
+                  <summary className="monthAccordionHead">
+                    <div className="monthTitleArea">
+                      <span className="monthArrow">▶</span>
+                      <span className="monthTitle">{group.month}</span>
+
+                      {group.unreadCount > 0 && (
+                        <span className="monthUnreadBadge">
+                          未読 {group.unreadCount > 99 ? "99+" : group.unreadCount}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="monthStats">
+                      <span>{group.orders.length}件</span>
+                      <span>新規 {newCount}</span>
+                      <span>進行中 {progressCount}</span>
+                      <span>納品済み {doneCount}</span>
+                    </div>
+                  </summary>
+
+                  <div className="monthAccordionBody">
+                    {group.orders.map((o) => renderOrderCard(o))}
                   </div>
-
-                  <div>
-                    <div className="label">使用店舗名</div>
-                    <div className="storeTitle">{o.store_name || "未入力"}</div>
-                  </div>
-
-                  <div className="metaLine">
-                    <span>オーダーID:{o.display_id || "未採番"}</span>
-                    <span>依頼者名:{o.contact_name || "未入力"}</span>
-                    <span>作成者:{o.created_by_name || "不明"}</span>
-                    <span>最新:{formatDate(o.latest_message_at)}</span>
-                  </div>
-                </div>
-
-                <div className="actionArea" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="confirmBtn"
-                    onClick={() => router.push(`/orders/${o.id}`)}
-                  >
-                    案件を確認する
-                  </button>
-
-                  <div className="adminControls">
-                    <span className="designerText">担当デザイナー</span>
-
-                    <select
-                      value={o.designer_name || ""}
-                      onChange={(e) => updateDesignerName(o.id, e.target.value)}
-                      className="designerSelect"
-                    >
-                      {DESIGNER_OPTIONS.map((name) => (
-                        <option key={name || "empty"} value={name}>
-                          {name || "未設定"}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      className="statusBtn"
-                      style={{
-                        background: statusStyle.bg,
-                        color: statusStyle.text,
-                      }}
-                      onClick={() => updateOrderStatus(o.id, getNextStatus(o.display_status))}
-                    >
-                      {o.display_status}
-                    </button>
-                  </div>
-                </div>
-
-                {o.unread_count > 0 && (
-                  <div className="unreadBadge">
-                    {o.unread_count > 99 ? "99+" : o.unread_count}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </section>
+                </details>
+              );
+            })}
+          </section>
+        )}
 
         <footer className="footer">© 2026 1best Order System</footer>
       </div>
@@ -710,30 +783,129 @@ export default function OrdersPage() {
           gap: 10px;
         }
 
-        .orderList {
+        .monthAccordionList {
+          display: grid;
+          gap: 14px;
+        }
+
+        .monthAccordion {
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          background: #fff;
+          overflow: visible;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        }
+
+        .monthAccordion.hasUnread {
+          border-color: rgba(59, 130, 246, 0.38);
+        }
+
+        .monthAccordionHead {
+          list-style: none;
+          cursor: pointer;
+          padding: 18px 22px;
+          background: #1e2c3d;
+          color: #fff;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          border-radius: 18px;
+        }
+
+        .monthAccordion[open] .monthAccordionHead {
+          border-radius: 18px 18px 0 0;
+        }
+
+        .monthAccordionHead::-webkit-details-marker {
+          display: none;
+        }
+
+        .monthTitleArea {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .monthArrow {
+          font-size: 12px;
+          transform: rotate(0deg);
+          transition: 0.2s ease;
+        }
+
+        .monthAccordion[open] .monthArrow {
+          transform: rotate(90deg);
+        }
+
+        .monthTitle {
+          font-size: 20px;
+          font-weight: 900;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+        }
+
+        .monthUnreadBadge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: #ef4444;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .monthStats {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: wrap;
+          font-size: 12px;
+          font-weight: 800;
+          color: rgba(255, 255, 255, 0.86);
+        }
+
+        .monthStats span {
+          display: inline-flex;
+          align-items: center;
+          height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+        }
+
+        .monthAccordionBody {
           display: flex;
           flex-direction: column;
           gap: 12px;
+          padding: 16px;
+          background: #f8fafc;
+          border-radius: 0 0 18px 18px;
         }
 
-       .orderCard {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 32px;
-  align-items: center;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  padding: 24px 28px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-  cursor: pointer;
-}
+        .orderCard {
+          position: relative;
+          display: grid;
+          grid-template-columns: 1fr 380px;
+          gap: 32px;
+          align-items: center;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 24px 28px;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+          cursor: pointer;
+        }
 
         .orderCard.isUnread {
           border-color: rgba(59, 130, 246, 0.45);
         }
-        
+
         .infoArea {
           display: grid;
           grid-template-columns: 1.2fr 1fr;
@@ -741,7 +913,7 @@ export default function OrdersPage() {
           row-gap: 18px;
           min-width: 0;
         }
-        
+
         .label {
           font-size: 11px;
           font-weight: 900;
@@ -749,7 +921,7 @@ export default function OrdersPage() {
           margin-bottom: 6px;
           letter-spacing: 0.02em;
         }
-        
+
         .mainTitle,
         .storeTitle {
           font-size: 18px;
@@ -758,7 +930,7 @@ export default function OrdersPage() {
           color: #241915;
           word-break: break-word;
         }
-        
+
         .metaLine {
           grid-column: 1 / -1;
           display: flex;
@@ -770,6 +942,7 @@ export default function OrdersPage() {
           line-height: 1.7;
           padding-top: 2px;
         }
+
         .actionArea {
           display: flex;
           flex-direction: column;
@@ -880,6 +1053,15 @@ export default function OrdersPage() {
             grid-template-columns: 1fr;
           }
 
+          .monthAccordionHead {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .monthStats {
+            justify-content: flex-start;
+          }
+
           .orderCard {
             grid-template-columns: 1fr;
             gap: 12px;
@@ -968,11 +1150,50 @@ export default function OrdersPage() {
             gap: 8px;
             width: 100%;
           }
-          
+
           .filters input,
           .filters select {
             height: 38px;
             font-size: 12px;
+          }
+
+          .monthAccordion {
+            border-radius: 14px;
+          }
+
+          .monthAccordionHead {
+            padding: 14px;
+            border-radius: 14px;
+            gap: 10px;
+          }
+
+          .monthAccordion[open] .monthAccordionHead {
+            border-radius: 14px 14px 0 0;
+          }
+
+          .monthTitle {
+            font-size: 17px;
+          }
+
+          .monthUnreadBadge {
+            min-height: 24px;
+            font-size: 11px;
+            padding: 0 9px;
+          }
+
+          .monthStats {
+            gap: 6px;
+            font-size: 10px;
+          }
+
+          .monthStats span {
+            height: 23px;
+            padding: 0 8px;
+          }
+
+          .monthAccordionBody {
+            padding: 10px;
+            border-radius: 0 0 14px 14px;
           }
 
           .orderCard {
