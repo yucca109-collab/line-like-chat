@@ -402,34 +402,24 @@ useEffect(() => {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "orders" },
-      (payload) => {
-        console.log("orders realtime 来たよ", payload);
-        load();
-      }
+      () => load()
     )
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "messages" },
-      (payload) => {
-        console.log("message realtime 来たよ", payload);
-        load();
-      }
+      () => load()
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "order_reads" },
-      (payload) => {
-        console.log("order_reads realtime 来たよ", payload);
-        load();
-      }
+      () => load()
     )
-    .subscribe((status) => {
-      console.log("orders-list realtime status:", status);
-    });
+    .subscribe();
 
   return () => {
     supabase.removeChannel(channel);
   };
+
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
