@@ -1269,4 +1269,7 @@ export default function OrdersPage() {
       margin-top: 16px;
     }
   }
-`}</style>
+      `}</style>
+    </div>
+  );
+}
