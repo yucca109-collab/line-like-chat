@@ -393,41 +393,46 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("user_name");
-    if (!saved) return;
+useEffect(() => {
+  const saved = localStorage.getItem("user_name");
+  if (!saved) return;
 
-    const channel = supabase
-      .channel("orders-list-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => {
-          load();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => {
-          load();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_reads" },
-        () => {
-          load();
-        }
-      )
-      .subscribe();
+  const channel = supabase
+    .channel("orders-list-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "orders" },
+      (payload) => {
+        console.log("orders realtime 来たよ", payload);
+        load();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages" },
+      (payload) => {
+        console.log("message realtime 来たよ", payload);
+        load();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "order_reads" },
+      (payload) => {
+        console.log("order_reads realtime 来たよ", payload);
+        load();
+      }
+    )
+    .subscribe((status) => {
+      console.log("orders-list realtime status:", status);
+    });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+  return () => {
+    supabase.removeChannel(channel);
+  };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
