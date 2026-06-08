@@ -872,7 +872,7 @@ useEffect(() => {
   height: 48px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #071426, #1e2c3d);
+  background: linear-gradient(135deg, #35b269, #3cb48c);
   color: #fff;
   font-size: 14px;
   font-weight: 950;
