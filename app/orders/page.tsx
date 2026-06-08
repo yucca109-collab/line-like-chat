@@ -1282,195 +1282,243 @@ useEffect(() => {
           }
         }
 
-        @media (max-width: 560px) {
-          .page {
-            padding: 10px;
-          }
+@media (max-width: 560px) {
+  .page {
+    padding: 10px;
+  }
 
-          .topHeader {
-            margin-bottom: 10px;
-          }
+  .topHeader {
+    margin-bottom: 10px;
+  }
 
-          .loginText {
-            font-size: 12px;
-          }
+  .loginText {
+    font-size: 12px;
+    font-weight: 700;
+  }
 
-          .logoutBtn {
-            padding: 8px 12px;
-            font-size: 11px;
-          }
+  .logoutBtn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
 
-          .createBox {
-            padding: 14px;
-            border-radius: 14px;
-            margin-bottom: 16px;
-          }
+  .createBox {
+    padding: 16px;
+    border-radius: 18px;
+    margin-bottom: 18px;
+  }
 
-          .createBox h2 {
-            font-size: 18px;
-          }
+  .createHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
 
-          .createGrid {
-            grid-template-columns: 1fr;
-            gap: 8px;
-            margin-top: 10px;
-          }
+  .createKicker {
+    margin: 0 0 4px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+  }
 
-          input,
-          select {
-            height: 38px;
-            font-size: 12px;
-          }
+  .createBox h2 {
+    font-size: 19px;
+    font-weight: 800;
+  }
 
-          .createBtn,
-          .reloadBtn {
-            width: 100%;
-            height: 38px;
-            font-size: 12px;
-          }
+  .reloadBtn {
+    width: auto;
+    height: 34px;
+    padding: 0 13px;
+    font-size: 11px;
+    font-weight: 700;
+  }
 
-          .errorText {
-            font-size: 12px;
-          }
+  .createGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 0;
+  }
 
-          .listHead h2 {
-            font-size: 18px;
-          }
+  .createField {
+    gap: 6px;
+  }
 
-          .filters {
-            grid-template-columns: 1fr;
-            gap: 8px;
-            width: 100%;
-          }
+  .createField span {
+    font-size: 11px;
+    font-weight: 700;
+  }
 
-          .filters input,
-          .filters select {
-            height: 38px;
-            font-size: 12px;
-          }
+  .createField input,
+  input,
+  select {
+    height: 42px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+  }
 
-          .monthAccordion {
-            border-radius: 14px;
-          }
+  .createBtn {
+    width: 100%;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 800;
+  }
 
-          .monthAccordionHead {
-            padding: 14px;
-            border-radius: 14px;
-            gap: 10px;
-          }
+  .errorText {
+    font-size: 12px;
+  }
 
-          .monthAccordion[open] .monthAccordionHead {
-            border-radius: 14px 14px 0 0;
-          }
+  .listHead {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
 
-          .monthTitle {
-            font-size: 17px;
-          }
+  .listHead h2 {
+    font-size: 19px;
+    font-weight: 800;
+  }
 
-          .monthUnreadBadge {
-            min-height: 26px;
-            font-size: 11px;
-            padding: 0 10px;
-          }
+  .filters {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    width: 100%;
+  }
 
-          .monthStats {
-            gap: 6px;
-            font-size: 10px;
-          }
+  .filters input,
+  .filters select {
+    height: 38px;
+    font-size: 12px;
+    font-weight: 500;
+  }
 
-          .monthStats span {
-            height: 23px;
-            padding: 0 8px;
-          }
+  .monthAccordion {
+    border-radius: 14px;
+  }
 
-          :global(.monthAccordionBody) {
-            padding: 10px;
-            border-radius: 0 0 14px 14px;
-          }
+  .monthAccordionHead {
+    padding: 13px 14px;
+    border-radius: 14px;
+    gap: 10px;
+  }
 
-          :global(.orderCard) {
-            grid-template-columns: 1fr;
-            padding: 18px 14px 14px;
-            border-radius: 14px;
-            gap: 10px;
-          }
+  .monthAccordion[open] .monthAccordionHead {
+    border-radius: 14px 14px 0 0;
+  }
 
-          :global(.infoArea) {
-            grid-template-columns: 1fr 1fr;
-            column-gap: 10px;
-            row-gap: 8px;
-          }
+  .monthTitle {
+    font-size: 16px;
+    font-weight: 800;
+  }
 
-          :global(.label) {
-            font-size: 10px;
-            margin-bottom: 4px;
-          }
+  .monthUnreadBadge {
+    min-height: 24px;
+    font-size: 10px;
+    padding: 0 9px;
+  }
 
-          :global(.mainTitle),
-          :global(.storeTitle) {
-            font-size: 15px;
-            line-height: 1.35;
-          }
+  .monthStats {
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+  }
 
-          :global(.metaLine) {
-            gap: 6px;
-            font-size: 10px;
-            line-height: 1.5;
-          }
+  .monthStats span {
+    height: 23px;
+    padding: 0 8px;
+  }
 
-          :global(.actionArea) {
-            gap: 6px;
-          }
+  :global(.monthAccordionBody) {
+    padding: 10px;
+    border-radius: 0 0 14px 14px;
+  }
 
-          :global(.confirmBtn) {
-            height: 40px;
-            border-radius: 10px;
-            font-size: 14px;
-          }
+  :global(.orderCard) {
+    grid-template-columns: 1fr;
+    padding: 16px 14px;
+    border-radius: 15px;
+    gap: 12px;
+  }
 
-          :global(.adminControls) {
-            grid-template-columns: auto 1fr 64px;
-            gap: 6px;
-            padding: 5px 6px 5px 8px;
-          }
+  :global(.infoArea) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 
-          :global(.designerText) {
-            font-size: 9px;
-          }
+  :global(.label) {
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
 
-          :global(.designerSelect) {
-            height: 24px;
-            font-size: 9px;
-            padding: 0 8px;
-          }
+  :global(.mainTitle),
+  :global(.storeTitle) {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
 
-          :global(.statusBtn) {
-            height: 24px;
-            font-size: 9px;
-          }
+  :global(.metaLine) {
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
 
-          :global(.unreadBadge) {
-            top: -8px;
-            right: -8px;
-            min-width: 30px;
-            height: 30px;
-            font-size: 13px;
-            box-shadow: 0 0 0 4px #fff, 0 8px 18px rgba(239, 68, 68, 0.32);
-          }
+  :global(.actionArea) {
+    gap: 7px;
+  }
 
-          :global(.unreadRibbon) {
-            top: 8px;
-            left: 12px;
-            min-height: 22px;
-            padding: 0 9px;
-            font-size: 10px;
-          }
+  :global(.confirmBtn) {
+    height: 40px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 800;
+  }
 
-          .footer {
-            font-size: 10px;
-            margin-top: 16px;
-          }
-        }
+  :global(.adminControls) {
+    grid-template-columns: 1fr;
+    border-radius: 14px;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  :global(.designerText) {
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  :global(.designerSelect),
+  :global(.statusBtn) {
+    width: 100%;
+    height: 30px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  :global(.unreadBadge) {
+    top: -8px;
+    right: -8px;
+    min-width: 30px;
+    height: 30px;
+    font-size: 13px;
+    box-shadow: 0 0 0 4px #fff, 0 8px 18px rgba(239, 68, 68, 0.32);
+  }
+
+  :global(.unreadRibbon) {
+    top: 8px;
+    left: 12px;
+    min-height: 22px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  .footer {
+    font-size: 10px;
+    margin-top: 16px;
+  }
+}
       `}</style>
     </div>
   );
