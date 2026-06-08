@@ -596,39 +596,58 @@ useEffect(() => {
         <section className="createBox">
           <h2>新規依頼作成</h2>
 
-          <div className="createGrid">
-            <input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="依頼案件名（必須）"
-            />
-            <input
-              value={newStoreName}
-              onChange={(e) => setNewStoreName(e.target.value)}
-              placeholder="店舗名"
-            />
-            <input
-              value={newContactName}
-              onChange={(e) => setNewContactName(e.target.value)}
-              placeholder="担当者名"
-            />
+<section className="createBox">
+  <div className="createHead">
+    <div>
+      <p className="createKicker">NEW ORDER</p>
+      <h2>新規依頼作成</h2>
+    </div>
 
-            <button
-              type="button"
-              onClick={createOrder}
-              disabled={creating}
-              className="createBtn"
-            >
-              {creating ? "作成中..." : "案件作成"}
-            </button>
+    <button type="button" onClick={load} className="reloadBtn">
+      再読み込み
+    </button>
+  </div>
 
-            <button type="button" onClick={load} className="reloadBtn">
-              再読み込み
-            </button>
-          </div>
+  <div className="createGrid">
+    <label className="createField mainField">
+      <span>案件名</span>
+      <input
+        value={newTitle}
+        onChange={(e) => setNewTitle(e.target.value)}
+        placeholder="例）イベントスライド一式"
+      />
+    </label>
 
-          {err && <p className="errorText">エラー: {err}</p>}
-        </section>
+    <label className="createField">
+      <span>店舗名</span>
+      <input
+        value={newStoreName}
+        onChange={(e) => setNewStoreName(e.target.value)}
+        placeholder="例）I Love 奥様"
+      />
+    </label>
+
+    <label className="createField">
+      <span>担当者名</span>
+      <input
+        value={newContactName}
+        onChange={(e) => setNewContactName(e.target.value)}
+        placeholder="例）山田"
+      />
+    </label>
+
+    <button
+      type="button"
+      onClick={createOrder}
+      disabled={creating}
+      className="createBtn"
+    >
+      <span>{creating ? "作成中..." : "案件を作成する"}</span>
+    </button>
+  </div>
+
+  {err && <p className="errorText">エラー: {err}</p>}
+</section>
 
         <section className="listHead">
           <h2>案件一覧</h2>
