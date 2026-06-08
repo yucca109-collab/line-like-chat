@@ -1364,6 +1364,7 @@ useEffect(() => {
     border-radius: 12px;
     font-size: 13px;
     font-weight: 800;
+    background: linear-gradient(135deg, #35b269, #3cb48c);
   }
 
   .errorText {
