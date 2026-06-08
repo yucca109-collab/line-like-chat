@@ -110,8 +110,8 @@ const PRICE_MAP: Record<string, number> = {
 
 const INVOICE_TO_OPTIONS = [
   "",
-  "〇〇〇〇株式会社",
   "1Best株式会社",
+  "藤井 啓輔",
   "その他",
 ] as const;
 
