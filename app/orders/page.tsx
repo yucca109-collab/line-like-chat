@@ -593,8 +593,6 @@ useEffect(() => {
           </button>
         </header>
 
-        <section className="createBox">
-          <h2>新規依頼作成</h2>
 
 <section className="createBox">
   <div className="createHead">
@@ -835,8 +833,6 @@ useEffect(() => {
         select:focus {
           border-color: #94a3b8;
           box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.15);
-        }
-
         }
 
 .createField {
