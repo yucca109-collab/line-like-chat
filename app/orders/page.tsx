@@ -784,28 +784,38 @@ useEffect(() => {
         }
 
         .createBox {
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
-          margin-bottom: 24px;
-        }
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96));
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  margin-bottom: 28px;
+}
 
-        .createBox h2,
-        .listHead h2 {
-          margin: 0;
-          font-size: 22px;
-          line-height: 1.3;
-        }
+.createHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
 
-        .createGrid {
-          margin-top: 14px;
-          display: grid;
-          grid-template-columns: 1.1fr 1fr 1fr 140px 130px;
-          gap: 10px;
-          align-items: center;
-        }
+
+
+.createBox h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+}
+
+.createGrid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 0.9fr 180px;
+  gap: 12px;
+  align-items: end;
+}
 
         input,
         select {
@@ -827,16 +837,82 @@ useEffect(() => {
           box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.15);
         }
 
-        .createBtn {
-          height: 40px;
-          border: none;
-          border-radius: 12px;
-          background: #071426;
-          color: #fff;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
         }
+
+.createField {
+  display: grid;
+  gap: 7px;
+}
+
+.createField span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.createField input {
+  height: 48px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.createField input::placeholder {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.createField input:focus {
+  border-color: #071426;
+  box-shadow: 0 0 0 4px rgba(7, 20, 38, 0.08);
+}
+
+        .createBtn {
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #071426, #1e2c3d);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(7, 20, 38, 0.18);
+}
+
+.createBtn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.reloadBtn {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .createGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .createHead {
+    align-items: flex-start;
+  }
+
+  .createBtn {
+    width: 100%;
+  }
+}
 
         .errorText {
           color: #ef4444;
