@@ -621,7 +621,7 @@ useEffect(() => {
       <input
         value={newStoreName}
         onChange={(e) => setNewStoreName(e.target.value)}
-        placeholder="例）I Love 奥様"
+        placeholder="例）金妻"
       />
     </label>
 
