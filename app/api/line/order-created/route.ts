@@ -4,6 +4,7 @@ export async function POST(req: Request) {
   try {
     const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
     const designerLineUserId = process.env.DESIGNER_LINE_USER_ID;
+    const designerLineUserId2 = process.env.DESIGNER_LINE_USER_ID_2;
 
     if (!token) {
       return NextResponse.json(
@@ -30,9 +31,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const targets = [lineUserId, designerLineUserId].filter(
-      (target): target is string => Boolean(target)
-    );
+    const targets = [
+      lineUserId,
+      designerLineUserId,
+      designerLineUserId2,
+    ].filter((target): target is string => Boolean(target));
+
 
     for (const target of targets) {
       const res = await fetch("https://api.line.me/v2/bot/message/push", {
