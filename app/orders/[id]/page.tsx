@@ -194,6 +194,7 @@ export default function OrderDetailPage() {
   const [hashTagText, setHashTagText] = useState("");
   const [publicComment, setPublicComment] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [modalImage, setModalImage] = useState<string | null>(null);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -1166,14 +1167,14 @@ export default function OrderDetailPage() {
 
                               <div className={`bubble ${isMe ? "me" : "other"}`}>
                                 {m.content && <div>{m.content}</div>}
-
-                                {m.image_url && (
-                                  <img
-                                    src={m.image_url}
-                                    alt="送信画像"
-                                    className="sentImage"
-                                  />
-                                )}
+                                  {m.image_url && (
+                                    <img
+                                      src={m.image_url}
+                                      alt="送信画像"
+                                      className="sentImage"
+                                      onClick={() => setModalImage(m.image_url || null)}
+                                    />
+                                  )}
                               </div>
                             </div>
                           </div>
@@ -1203,6 +1204,7 @@ export default function OrderDetailPage() {
                                     src={img.image_url || ""}
                                     alt="送信画像"
                                     className="groupImage"
+                                    onClick={() => setModalImage(img.image_url || null)}
                                   />
                                 ))}
                               </div>
@@ -1578,6 +1580,19 @@ export default function OrderDetailPage() {
             </section>
 
             {err && <div className="errorBox">{err}</div>}
+            {modalImage && (
+              <div
+                className="imageModal"
+                onClick={() => setModalImage(null)}
+              >
+                <img
+                  src={modalImage}
+                  alt="拡大画像"
+                  className="modalImage"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
           </>
         )}
       </div>
@@ -2293,6 +2308,33 @@ export default function OrderDetailPage() {
           font-size: 13px;
           line-height: 1.7;
         }
+
+
+        .imageModal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.92);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          padding: 20px;
+        }
+        
+        .modalImage {
+          max-width: 95vw;
+          max-height: 95vh;
+          object-fit: contain;
+          border-radius: 12px;
+        }
+        
+        .sentImage,
+        .groupImage {
+          cursor: zoom-in;
+        }
+
+
+        
 
         .errorBox {
           margin: 18px auto 0;
