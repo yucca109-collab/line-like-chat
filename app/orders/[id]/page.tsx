@@ -1589,7 +1589,7 @@ export default function OrderDetailPage() {
                   src={modalImage}
                   alt="拡大画像"
                   className="modalImage"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={() => setModalImage(null)}
                 />
               </div>
             )}
