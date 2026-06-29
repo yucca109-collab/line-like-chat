@@ -939,7 +939,7 @@ const sendMessage = async () => {
             await supabase
               .from("line_users")
               .select("line_user_id,line_name,role")
-              .in("role", ["designer", "admin"]);
+              .eq("role", "designer");
 
           if (designerUsersError) {
             console.error(
