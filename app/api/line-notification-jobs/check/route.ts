@@ -19,23 +19,9 @@ export async function GET() {
 
   const { data: jobs, error } = await supabase
     .from("line_notification_jobs")
-    .select(`
-      id,
-      order_id,
-      message_id,
-      recipient_line_user_id,
-      recipient_name,
-      sender_name,
-      notify_at,
-      messages (
-        id,
-        created_at
-      ),
-      orders (
-        display_id,
-        title
-      )
-    `)
+    .select(
+      "id,order_id,message_id,recipient_line_user_id,recipient_name,sender_name,notify_at"
+    )
     .is("sent_at", null)
     .is("skipped_at", null)
     .lte("notify_at", now)
@@ -49,15 +35,19 @@ export async function GET() {
   let skipped = 0;
 
   for (const job of jobs ?? []) {
-    const messageCreatedAt =
-      Array.isArray(job.messages)
-        ? job.messages[0]?.created_at
-        : job.messages?.created_at;
+    const { data: message } = await supabase
+      .from("messages")
+      .select("id,created_at")
+      .eq("id", job.message_id)
+      .maybeSingle();
 
-    const order =
-      Array.isArray(job.orders) ? job.orders[0] : job.orders;
+    const { data: order } = await supabase
+      .from("orders")
+      .select("display_id,title")
+      .eq("id", job.order_id)
+      .maybeSingle();
 
-    if (!messageCreatedAt) {
+    if (!message?.created_at) {
       await supabase
         .from("line_notification_jobs")
         .update({
@@ -80,7 +70,7 @@ export async function GET() {
     if (
       readInfo?.last_read_at &&
       new Date(readInfo.last_read_at).getTime() >=
-        new Date(messageCreatedAt).getTime()
+        new Date(message.created_at).getTime()
     ) {
       await supabase
         .from("line_notification_jobs")
