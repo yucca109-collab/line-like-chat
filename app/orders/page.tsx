@@ -119,8 +119,6 @@ const load = async () => {
 
   let role = "creator";
 
-  let role = "creator";
-
 const { data: userData } = await supabase
   .from("line_users")
   .select("role")
