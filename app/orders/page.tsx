@@ -104,123 +104,142 @@ export default function OrdersPage() {
     return String(createdAt).slice(0, 7);
   };
 
-  const load = async () => {
-    const name = localStorage.getItem("user_name");
+const load = async () => {
+  const name = localStorage.getItem("user_name");
+  const lineUserId = localStorage.getItem("line_user_id");
 
-    if (!name) {
-      router.push("/login");
-      return;
-    }
+  if (!name) {
+    router.push("/login");
+    return;
+  }
 
-    setUserName(name);
-    setErr("");
-    setLoading(true);
+  setUserName(name);
+  setErr("");
+  setLoading(true);
 
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .select(
-        "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name,display_id"
-      )
-      .order("created_at", { ascending: false });
+  let role = "creator";
 
-    if (orderError) {
-      setErr(orderError.message);
-      setLoading(false);
-      return;
-    }
+  if (lineUserId) {
+    const { data: userData } = await supabase
+      .from("line_users")
+      .select("role")
+      .eq("line_user_id", lineUserId)
+      .maybeSingle();
 
-    const baseOrders = (orderData ?? []) as OrderRow[];
+    role = userData?.role || "creator";
+    localStorage.setItem("role", role);
+  }
 
-    if (baseOrders.length === 0) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
+  let orderQuery = supabase
+    .from("orders")
+    .select(
+      "id,title,status,created_at,store_name,contact_name,designer_name,created_by_name,display_id,line_user_id,created_by_line_user_id"
+    )
+    .order("created_at", { ascending: false });
 
-    const orderIds = baseOrders.map((o) => o.id);
+  if (role === "creator") {
+    orderQuery = orderQuery.eq("line_user_id", lineUserId);
+  }
 
-    const { data: messageData, error: messageError } = await supabase
-      .from("messages")
-      .select("id,order_id,created_at,sender_name")
-      .in("order_id", orderIds)
-      .order("created_at", { ascending: false });
+  const { data: orderData, error: orderError } = await orderQuery;
 
-    if (messageError) {
-      setErr(messageError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { data: readData, error: readError } = await supabase
-      .from("order_reads")
-      .select("order_id,user_name,last_read_at")
-      .eq("user_name", name)
-      .in("order_id", orderIds);
-
-    if (readError) {
-      setErr(readError.message);
-      setLoading(false);
-      return;
-    }
-
-    const messages = (messageData ?? []) as MessageRow[];
-    const reads = (readData ?? []) as OrderReadRow[];
-
-    const latestMessageMap = new Map<string, MessageRow>();
-
-    for (const msg of messages) {
-      if (!latestMessageMap.has(msg.order_id)) {
-        latestMessageMap.set(msg.order_id, msg);
-      }
-    }
-
-    const readMap = new Map<string, OrderReadRow>();
-
-    for (const read of reads) {
-      readMap.set(read.order_id, read);
-    }
-
-    const messageMap = new Map<string, MessageRow[]>();
-
-    for (const msg of messages) {
-      const list = messageMap.get(msg.order_id) ?? [];
-      list.push(msg);
-      messageMap.set(msg.order_id, list);
-    }
-
-    const merged: OrderWithMeta[] = baseOrders.map((order) => {
-      const latestMessage = latestMessageMap.get(order.id);
-      const readInfo = readMap.get(order.id);
-      const orderMessages = messageMap.get(order.id) ?? [];
-
-      let unreadCount = 0;
-
-      if (!readInfo) {
-        unreadCount = orderMessages.filter(
-          (msg) => msg.sender_name !== name
-        ).length;
-      } else {
-        unreadCount = orderMessages.filter(
-          (msg) =>
-            msg.sender_name !== name &&
-            new Date(msg.created_at).getTime() >
-              new Date(readInfo.last_read_at).getTime()
-        ).length;
-      }
-
-      return {
-        ...order,
-        latest_message_at: latestMessage?.created_at ?? null,
-        unread: unreadCount > 0,
-        unread_count: unreadCount,
-        display_status: getDisplayStatus(order.status),
-      };
-    });
-
-    setOrders(merged);
+  if (orderError) {
+    setErr(orderError.message);
     setLoading(false);
-  };
+    return;
+  }
 
+  const baseOrders = (orderData ?? []) as OrderRow[];
+
+  if (baseOrders.length === 0) {
+    setOrders([]);
+    setLoading(false);
+    return;
+  }
+
+  const orderIds = baseOrders.map((o) => o.id);
+
+  const { data: messageData, error: messageError } = await supabase
+    .from("messages")
+    .select("id,order_id,created_at,sender_name")
+    .in("order_id", orderIds)
+    .order("created_at", { ascending: false });
+
+  if (messageError) {
+    setErr(messageError.message);
+    setLoading(false);
+    return;
+  }
+
+  const { data: readData, error: readError } = await supabase
+    .from("order_reads")
+    .select("order_id,user_name,last_read_at")
+    .eq("user_name", name)
+    .in("order_id", orderIds);
+
+  if (readError) {
+    setErr(readError.message);
+    setLoading(false);
+    return;
+  }
+
+  const messages = (messageData ?? []) as MessageRow[];
+  const reads = (readData ?? []) as OrderReadRow[];
+
+  const latestMessageMap = new Map<string, MessageRow>();
+
+  for (const msg of messages) {
+    if (!latestMessageMap.has(msg.order_id)) {
+      latestMessageMap.set(msg.order_id, msg);
+    }
+  }
+
+  const readMap = new Map<string, OrderReadRow>();
+
+  for (const read of reads) {
+    readMap.set(read.order_id, read);
+  }
+
+  const messageMap = new Map<string, MessageRow[]>();
+
+  for (const msg of messages) {
+    const list = messageMap.get(msg.order_id) ?? [];
+    list.push(msg);
+    messageMap.set(msg.order_id, list);
+  }
+
+  const merged: OrderWithMeta[] = baseOrders.map((order) => {
+    const latestMessage = latestMessageMap.get(order.id);
+    const readInfo = readMap.get(order.id);
+    const orderMessages = messageMap.get(order.id) ?? [];
+
+    let unreadCount = 0;
+
+    if (!readInfo) {
+      unreadCount = orderMessages.filter(
+        (msg) => msg.sender_name !== name
+      ).length;
+    } else {
+      unreadCount = orderMessages.filter(
+        (msg) =>
+          msg.sender_name !== name &&
+          new Date(msg.created_at).getTime() >
+            new Date(readInfo.last_read_at).getTime()
+      ).length;
+    }
+
+    return {
+      ...order,
+      latest_message_at: latestMessage?.created_at ?? null,
+      unread: unreadCount > 0,
+      unread_count: unreadCount,
+      display_status: getDisplayStatus(order.status),
+    };
+  });
+
+  setOrders(merged);
+  setLoading(false);
+};
   const createOrder = async () => {
     setErr("");
 
