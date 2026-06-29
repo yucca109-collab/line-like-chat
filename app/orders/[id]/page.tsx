@@ -798,7 +798,6 @@ export default function OrderDetailPage() {
   
 
 const sendMessage = async () => {
-const sendMessage = async () => {
   setErr("");
 
   const content = input.trim();
