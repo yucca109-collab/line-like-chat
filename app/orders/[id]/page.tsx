@@ -963,11 +963,12 @@ const sendMessage = async () => {
     setInput("");
     setFiles([]);
     await updateTyping(false);
-  } catch (e) {
-    setErr(e instanceof Error ? e.message : "送信に失敗しました");
-  } finally {
-    setSending(false);
-  }
+ } catch (e) {
+  console.error(e);
+  setErr(e instanceof Error ? e.message : String(e));
+} finally {
+  setSending(false);
+}
 };
 
   
