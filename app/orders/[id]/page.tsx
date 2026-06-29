@@ -798,10 +798,12 @@ export default function OrderDetailPage() {
   
 
 const sendMessage = async () => {
+const sendMessage = async () => {
   setErr("");
 
   const content = input.trim();
   const name = localStorage.getItem("user_name");
+  const lineUserId = localStorage.getItem("line_user_id");
 
   if (!name) {
     router.push("/login");
@@ -852,6 +854,7 @@ const sendMessage = async () => {
       content: string | null;
       image_url: string | null;
       sender_name: string;
+      sender_line_user_id: string | null;
     }[] = [];
 
     if (content || uploadedImageUrls.length === 0) {
@@ -860,6 +863,7 @@ const sendMessage = async () => {
         content: content || null,
         image_url: null,
         sender_name: name,
+        sender_line_user_id: lineUserId || null,
       });
     }
 
@@ -869,6 +873,7 @@ const sendMessage = async () => {
         content: null,
         image_url: imageUrl,
         sender_name: name,
+        sender_line_user_id: lineUserId || null,
       });
     }
 
@@ -878,7 +883,7 @@ const sendMessage = async () => {
       .select("id,order_id,content,image_url,sender_name,created_at");
 
     if (error) {
-      throw new Error("メッセージの送信に失敗しました");
+      throw new Error(`メッセージの送信に失敗しました: ${error.message}`);
     }
 
     if (insertedRows) {
@@ -905,55 +910,87 @@ const sendMessage = async () => {
         setLastSentIds([]);
       }, 30000);
 
-      const { data: orderInfo } = await supabase
+      const { data: orderInfo, error: orderInfoError } = await supabase
         .from("orders")
-        .select("created_by_name, designer_name")
+        .select(
+          "id,created_by_name,created_by_line_user_id,designer_name,display_id,title"
+        )
         .eq("id", orderId)
         .single();
 
-      if (orderInfo) {
-        const recipients: string[] = [];
+      if (orderInfoError) {
+        console.error("通知予約用の案件取得エラー", orderInfoError.message);
+      }
 
-        if (
-          orderInfo.created_by_name &&
-          orderInfo.created_by_name !== name
-        ) {
-          const { data: creator } = await supabase
-            .from("line_users")
-            .select("line_user_id")
-            .eq("line_name", orderInfo.created_by_name)
-            .maybeSingle();
+      if (orderInfo && lineUserId) {
+        const recipients: {
+          recipient_line_user_id: string;
+          recipient_name: string | null;
+        }[] = [];
 
-          if (creator?.line_user_id) {
-            recipients.push(creator.line_user_id);
+        const isCreatorSender =
+          orderInfo.created_by_line_user_id &&
+          orderInfo.created_by_line_user_id === lineUserId;
+
+        const isDesignerSender =
+          orderInfo.designer_name && orderInfo.designer_name === name;
+
+        if (isCreatorSender) {
+          const { data: designerUsers, error: designerUsersError } =
+            await supabase
+              .from("line_users")
+              .select("line_user_id,line_name,role")
+              .in("role", ["designer", "admin"]);
+
+          if (designerUsersError) {
+            console.error(
+              "designer/admin取得エラー",
+              designerUsersError.message
+            );
           }
-        }
 
-        if (
-          orderInfo.designer_name &&
-          orderInfo.designer_name !== name
-        ) {
-          const { data: designer } = await supabase
-            .from("line_users")
-            .select("line_user_id")
-            .eq("line_name", orderInfo.designer_name)
-            .maybeSingle();
-
+          for (const user of designerUsers ?? []) {
+            if (
+              user.line_user_id &&
+              user.line_user_id !== lineUserId &&
+              !recipients.some(
+                (r) => r.recipient_line_user_id === user.line_user_id
+              )
+            ) {
+              recipients.push({
+                recipient_line_user_id: user.line_user_id,
+                recipient_name: user.line_name ?? null,
+              });
+            }
+          }
+        } else {
           if (
-            designer?.line_user_id &&
-            !recipients.includes(designer.line_user_id)
+            orderInfo.created_by_line_user_id &&
+            orderInfo.created_by_line_user_id !== lineUserId
           ) {
-            recipients.push(designer.line_user_id);
+            recipients.push({
+              recipient_line_user_id: orderInfo.created_by_line_user_id,
+              recipient_name: orderInfo.created_by_name ?? null,
+            });
           }
         }
 
-        for (const recipientLineUserId of recipients) {
-          await supabase.from("line_notification_jobs").insert({
-            order_id: orderId,
-            recipient_user_id: recipientLineUserId,
-            message_id: rows[rows.length - 1].id,
-            notify_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-          });
+        for (const recipient of recipients) {
+          const { error: jobError } = await supabase
+            .from("line_notification_jobs")
+            .insert({
+              order_id: orderId,
+              message_id: rows[rows.length - 1].id,
+              sender_line_user_id: lineUserId,
+              sender_name: name,
+              recipient_line_user_id: recipient.recipient_line_user_id,
+              recipient_name: recipient.recipient_name,
+              notify_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            });
+
+          if (jobError) {
+            console.error("通知予約INSERTエラー", jobError.message);
+          }
         }
       }
     }
@@ -963,14 +1000,13 @@ const sendMessage = async () => {
     setInput("");
     setFiles([]);
     await updateTyping(false);
- } catch (e) {
-  console.error(e);
-  setErr(e instanceof Error ? e.message : String(e));
-} finally {
-  setSending(false);
-}
+  } catch (e) {
+    console.error(e);
+    setErr(e instanceof Error ? e.message : String(e));
+  } finally {
+    setSending(false);
+  }
 };
-
   
 
 
