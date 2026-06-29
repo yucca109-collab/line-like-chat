@@ -1881,11 +1881,21 @@ const sendMessage = async () => {
           background: #111827;
         }
 
-        .imageGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-        }
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 120px);
+  gap: 6px;
+  max-width: 246px;
+}
+
+.groupImage {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  background: #111827;
+}
 
         .groupImage {
           width: 100%;
@@ -2544,16 +2554,16 @@ const sendMessage = async () => {
             border-radius: 14px;
           }
 
-          .imageGrid {
-            grid-template-columns: 1fr;
-          }
+.imageGrid {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 100%;
+}
 
-          .groupImage {
-            aspect-ratio: auto;
-            height: auto;
-            max-height: none;
-          }
-
+.groupImage {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
           .typingArea {
             padding: 0 16px;
           }
