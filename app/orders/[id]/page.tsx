@@ -792,126 +792,188 @@ export default function OrderDetailPage() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const sendMessage = async () => {
-    setErr("");
 
-    const content = input.trim();
-    const name = localStorage.getItem("user_name");
 
-    if (!name) {
-      router.push("/login");
-      return;
+
+  
+
+const sendMessage = async () => {
+  setErr("");
+
+  const content = input.trim();
+  const name = localStorage.getItem("user_name");
+
+  if (!name) {
+    router.push("/login");
+    return;
+  }
+
+  if (!content && files.length === 0) return;
+
+  setSending(true);
+
+  try {
+    const uploadedImageUrls: string[] = [];
+
+    for (const originalFile of files) {
+      const file = await compressImage(originalFile);
+
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error(
+          `「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`
+        );
+      }
+
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${fileExt}`;
+      const filePath = `chat/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("chat-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw new Error(
+          "画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。"
+        );
+      }
+
+      const { data } = supabase.storage
+        .from("chat-images")
+        .getPublicUrl(filePath);
+
+      uploadedImageUrls.push(data.publicUrl);
     }
 
-    if (!content && files.length === 0) return;
+    const rowsToInsert: {
+      order_id: string;
+      content: string | null;
+      image_url: string | null;
+      sender_name: string;
+    }[] = [];
 
-    setSending(true);
+    if (content || uploadedImageUrls.length === 0) {
+      rowsToInsert.push({
+        order_id: orderId,
+        content: content || null,
+        image_url: null,
+        sender_name: name,
+      });
+    }
 
-    try {
-      const uploadedImageUrls: string[] = [];
+    for (const imageUrl of uploadedImageUrls) {
+      rowsToInsert.push({
+        order_id: orderId,
+        content: null,
+        image_url: imageUrl,
+        sender_name: name,
+      });
+    }
 
-      for (const originalFile of files) {
-        const file = await compressImage(originalFile);
+    const { data: insertedRows, error } = await supabase
+      .from("messages")
+      .insert(rowsToInsert)
+      .select("id,order_id,content,image_url,sender_name,created_at");
 
-        if (file.size > 5 * 1024 * 1024) {
-          throw new Error(
-            `「${file.name}」のサイズが大きすぎます。5MB以下の画像にしてください。`
-          );
-        }
+    if (error) {
+      throw new Error("メッセージの送信に失敗しました");
+    }
 
-        const fileExt = file.name.split(".").pop() || "jpg";
-        const fileName = `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
-        const filePath = `chat/${fileName}`;
+    if (insertedRows) {
+      const rows = insertedRows as Message[];
 
-        const { error: uploadError } = await supabase.storage
-          .from("chat-images")
-          .upload(filePath, file);
+      setMessages((prev) => {
+        const next = [...prev];
 
-        if (uploadError) {
-          throw new Error(
-            "画像のアップロードに失敗しました。画像サイズを小さくして再度お試しください。"
-          );
-        }
-
-        const { data } = supabase.storage
-          .from("chat-images")
-          .getPublicUrl(filePath);
-
-        uploadedImageUrls.push(data.publicUrl);
-      }
-
-      const rowsToInsert: {
-        order_id: string;
-        content: string | null;
-        image_url: string | null;
-        sender_name: string;
-      }[] = [];
-
-      if (content || uploadedImageUrls.length === 0) {
-        rowsToInsert.push({
-          order_id: orderId,
-          content: content || null,
-          image_url: null,
-          sender_name: name,
-        });
-      }
-
-      for (const imageUrl of uploadedImageUrls) {
-        rowsToInsert.push({
-          order_id: orderId,
-          content: null,
-          image_url: imageUrl,
-          sender_name: name,
-        });
-      }
-
-      const { data: insertedRows, error } = await supabase
-        .from("messages")
-        .insert(rowsToInsert)
-        .select("id,order_id,content,image_url,sender_name,created_at");
-
-      if (error) {
-        throw new Error("メッセージの送信に失敗しました");
-      }
-
-      if (insertedRows) {
-        const rows = insertedRows as Message[];
-
-        setMessages((prev) => {
-          const next = [...prev];
-
-          for (const row of rows) {
-            if (!next.some((m) => m.id === row.id)) {
-              next.push(row);
-            }
+        for (const row of rows) {
+          if (!next.some((m) => m.id === row.id)) {
+            next.push(row);
           }
+        }
 
-          return next;
-        });
+        return next;
+      });
 
-        setLastSentIds(rows.map((row) => row.id));
-        setCanUndo(true);
-        clearUndoTimer();
+      setLastSentIds(rows.map((row) => row.id));
+      setCanUndo(true);
+      clearUndoTimer();
 
-        undoTimerRef.current = setTimeout(() => {
-          setCanUndo(false);
-          setLastSentIds([]);
-        }, 30000);
+      undoTimerRef.current = setTimeout(() => {
+        setCanUndo(false);
+        setLastSentIds([]);
+      }, 30000);
+
+      const { data: orderInfo } = await supabase
+        .from("orders")
+        .select("created_by_name, designer_name")
+        .eq("id", orderId)
+        .single();
+
+      if (orderInfo) {
+        const recipients: string[] = [];
+
+        if (
+          orderInfo.created_by_name &&
+          orderInfo.created_by_name !== name
+        ) {
+          const { data: creator } = await supabase
+            .from("line_users")
+            .select("line_user_id")
+            .eq("line_name", orderInfo.created_by_name)
+            .maybeSingle();
+
+          if (creator?.line_user_id) {
+            recipients.push(creator.line_user_id);
+          }
+        }
+
+        if (
+          orderInfo.designer_name &&
+          orderInfo.designer_name !== name
+        ) {
+          const { data: designer } = await supabase
+            .from("line_users")
+            .select("line_user_id")
+            .eq("line_name", orderInfo.designer_name)
+            .maybeSingle();
+
+          if (
+            designer?.line_user_id &&
+            !recipients.includes(designer.line_user_id)
+          ) {
+            recipients.push(designer.line_user_id);
+          }
+        }
+
+        for (const recipientLineUserId of recipients) {
+          await supabase.from("line_notification_jobs").insert({
+            order_id: orderId,
+            recipient_user_id: recipientLineUserId,
+            message_id: rows[rows.length - 1].id,
+            notify_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+        }
       }
-
-      await markAsRead();
-      clearTypingTimer();
-      setInput("");
-      setFiles([]);
-      await updateTyping(false);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "送信に失敗しました");
-    } finally {
-      setSending(false);
     }
-  };
+
+    await markAsRead();
+    clearTypingTimer();
+    setInput("");
+    setFiles([]);
+    await updateTyping(false);
+  } catch (e) {
+    setErr(e instanceof Error ? e.message : "送信に失敗しました");
+  } finally {
+    setSending(false);
+  }
+};
+
+  
+
+
+  
 
   const undoLastSend = async () => {
     if (lastSentIds.length === 0) return;
