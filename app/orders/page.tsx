@@ -119,20 +119,30 @@ const load = async () => {
 
   let role = "creator";
 
-const { data: userData } = await supabase
-  .from("line_users")
-  .select("role")
-  .or(
-    lineUserId
-      ? `line_user_id.eq.${lineUserId},line_name.eq.${name}`
-      : `line_name.eq.${name}`
-  )
-  .maybeSingle();
+  if (lineUserId) {
+    const { data: userByLineId, error: userError } = await supabase
+      .from("line_users")
+      .select("role,line_name")
+      .eq("line_user_id", lineUserId)
+      .maybeSingle();
 
-role = userData?.role || "creator";
-localStorage.setItem("role", role);
+    if (userError) {
+      console.error("role取得エラー", userError.message);
+    }
 
-  
+    if (userByLineId?.role) {
+      role = userByLineId.role;
+    }
+  }
+
+  localStorage.setItem("role", role);
+
+  console.log("role check", {
+    name,
+    lineUserId,
+    role,
+  });
+
   let orderQuery = supabase
     .from("orders")
     .select(
@@ -243,6 +253,12 @@ localStorage.setItem("role", role);
   setOrders(merged);
   setLoading(false);
 };
+
+
+
+
+
+  
   const createOrder = async () => {
     setErr("");
 
