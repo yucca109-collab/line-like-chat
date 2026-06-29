@@ -119,17 +119,22 @@ const load = async () => {
 
   let role = "creator";
 
-  if (lineUserId) {
-    const { data: userData } = await supabase
-      .from("line_users")
-      .select("role")
-      .eq("line_user_id", lineUserId)
-      .maybeSingle();
+  let role = "creator";
 
-    role = userData?.role || "creator";
-    localStorage.setItem("role", role);
-  }
+const { data: userData } = await supabase
+  .from("line_users")
+  .select("role")
+  .or(
+    lineUserId
+      ? `line_user_id.eq.${lineUserId},line_name.eq.${name}`
+      : `line_name.eq.${name}`
+  )
+  .maybeSingle();
 
+role = userData?.role || "creator";
+localStorage.setItem("role", role);
+
+  
   let orderQuery = supabase
     .from("orders")
     .select(
