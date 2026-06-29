@@ -126,6 +126,16 @@ const load = async () => {
       .eq("line_user_id", lineUserId)
       .maybeSingle();
 
+
+    console.log("line_users", {
+  lineUserId,
+  userByLineId,
+  userError,
+});
+
+
+    
+
     if (userError) {
       console.error("role取得エラー", userError.message);
     }
