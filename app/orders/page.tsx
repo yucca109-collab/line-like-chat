@@ -415,8 +415,7 @@ const load = async () => {
     const urlLineUserId = params.get("line_user_id");
     const urlLineName = params.get("line_name");
 
-    if (urlLineUserId) localStorage.setItem("line_user_id", urlLineUserId);
-    if (urlLineName) localStorage.setItem("user_name", urlLineName);
+     if (urlLineUserId) localStorage.setItem("line_user_id", urlLineUserId);  
 
     const saved = localStorage.getItem("user_name");
 
