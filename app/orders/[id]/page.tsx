@@ -1411,8 +1411,16 @@ const sendMessage = async () => {
                   </div>
                 )}
               </div>
-
-              <div className="typingArea">{otherTyping ? "入力中..." : ""}</div>
+              
+              <div className="typingArea">
+                {otherTyping ? "入力中..." : ""}
+              </div>
+              
+              {err && (
+                <div className="errorBox">
+                  {err}
+                </div>
+              )}
 
               {previewUrls.length > 0 && (
                 <div className="previewDock">
@@ -1774,7 +1782,7 @@ const sendMessage = async () => {
               </div>
             </section>
 
-            {err && <div className="errorBox">{err}</div>}
+
             {modalImage && (
               <div
                 className="imageModal"
@@ -2555,7 +2563,7 @@ const sendMessage = async () => {
         
 
         .errorBox {
-          margin: 18px auto 0;
+          margin: 8px 30px;
           max-width: 900px;
           background: #fef2f2;
           border: 1px solid #fecaca;
