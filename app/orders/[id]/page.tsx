@@ -198,6 +198,7 @@ export default function OrderDetailPage() {
   const [publicComment, setPublicComment] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [modalImage, setModalImage] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const previewUrls = useMemo(() => {
     return files.map((file) => ({
@@ -241,6 +242,10 @@ export default function OrderDetailPage() {
       if (deliverablePreviewUrl) URL.revokeObjectURL(deliverablePreviewUrl);
     };
   }, [deliverablePreviewUrl]);
+  
+  useEffect(() => {
+    setIsMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  }, []);
 
   const syncDeliveryDraft = (targetOrder: Order) => {
     setDraftDeliveryDate(targetOrder.final_delivery_date || "");
@@ -844,6 +849,34 @@ const downloadImagesAsZip = async (images: Message[]) => {
     }
   };
   
+  
+  
+const downloadAllImages = async (images: Message[]) => {
+    const displayId = order?.display_id || "images";
+  
+    for (let i = 0; i < images.length; i++) {
+      const url = images[i].image_url;
+      if (!url) continue;
+  
+      const res = await fetch(url);
+      const blob = await res.blob();
+  
+      const ext =
+        blob.type.split("/")[1] ||
+        url.split(".").pop() ||
+        "jpg";
+  
+      saveAs(
+        blob,
+        `${displayId}_${String(i + 1).padStart(2, "0")}.${ext}`
+      );
+  
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+  };
+  
+  
+  
 
 const sendMessage = async () => {
   setErr("");
@@ -1357,13 +1390,17 @@ const sendMessage = async () => {
                             
                             {group.images.length > 1 && (
                               <div className="imageActions">
-                                <button
-                                  type="button"
-                                  className="zipButton"
-                                  onClick={() => downloadImagesAsZip(group.images)}
-                                >
-                                  📦 ZIPで保存
-                                </button>
+                              <button
+                                type="button"
+                                className="zipButton"
+                                onClick={() =>
+                                  isMobile
+                                    ? downloadAllImages(group.images)
+                                    : downloadImagesAsZip(group.images)
+                                }
+                              >
+                                {isMobile ? "📥 すべてダウンロード" : "📦 ZIPで保存"}
+                              </button>
                               </div>
                             )}
                             </div>
