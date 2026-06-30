@@ -2693,7 +2693,7 @@ const sendMessage = async () => {
           }
         
 .inputBar {
-            margin: 6px 8px 8px;
+            margin: 0px 8px 8px;
             min-height: 48px;
             padding: 4px;
             gap: 4px;
@@ -2703,14 +2703,14 @@ const sendMessage = async () => {
 .imageAddBtn {
             height: 34px;
             padding: 0 10px;
-            font-size: 11px;
+            font-size: 10px;
             border-radius: 999px;
           }
         
 .messageInput {
             min-height: 34px;
             height: 34px;
-            font-size: 15px;
+            font-size: 13px;
             padding: 4px;
           }
         
