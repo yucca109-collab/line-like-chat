@@ -2692,31 +2692,31 @@ const sendMessage = async () => {
             padding: 8px 12px 0;
           }
         
-          .inputBar {
-            flex-shrink: 0;
-            margin: 10px;
-            min-height: 62px;
-            padding: 8px;
-            gap: 8px;
+.inputBar {
+            margin: 6px 8px 8px;
+            min-height: 48px;
+            padding: 4px;
+            gap: 4px;
             border-radius: 999px;
           }
         
-          .imageAddBtn {
-            height: 40px;
-            padding: 0 12px;
+.imageAddBtn {
+            height: 34px;
+            padding: 0 10px;
             font-size: 11px;
+            border-radius: 999px;
           }
         
-          .messageInput {
-            font-size: 16px;
-            min-height: 42px;
-            height: 42px;
-            padding: 7px 4px;
+.messageInput {
+            min-height: 34px;
+            height: 34px;
+            font-size: 15px;
+            padding: 4px;
           }
         
-          .sendBtn {
-            width: 46px;
-            height: 46px;
+.sendBtn {
+            width: 36px;
+            height: 36px;
           }
         
          .workPanel,
