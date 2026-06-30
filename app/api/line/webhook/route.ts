@@ -42,10 +42,19 @@ async function getLineProfile(userId: string) {
   return await res.json();
 }
 
-async function upsertLineUser(userId?: string | null) {
-  if (!userId) return;
+async function upsertLineUser(userId?: string | null, eventType?: string) {
+  if (!userId) {
+    console.log("LINE user skipped: no userId", { eventType });
+    return;
+  }
 
   const profile = await getLineProfile(userId);
+
+  console.log("LINE user profile:", {
+    eventType,
+    userId,
+    displayName: profile?.displayName,
+  });
 
   const { error } = await supabase.from("line_users").upsert(
     {
@@ -60,6 +69,12 @@ async function upsertLineUser(userId?: string | null) {
 
   if (error) {
     console.error("line_users upsert error:", error.message);
+  } else {
+    console.log("line_users upsert success:", {
+      eventType,
+      userId,
+      displayName: profile?.displayName,
+    });
   }
 }
 
@@ -72,9 +87,18 @@ export async function POST(req: Request) {
     const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
 
-    await upsertLineUser(userId);
+    console.log("LINE webhook event:", {
+      eventType,
+      userId,
+      hasReplyToken: Boolean(replyToken),
+      message: userMessage || null,
+    });
+
+    await upsertLineUser(userId, eventType);
 
     if (eventType === "follow") {
+      console.log("LINE follow:", { userId });
+
       if (replyToken) {
         await replyMessage(
           replyToken,
