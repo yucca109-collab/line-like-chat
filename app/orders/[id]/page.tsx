@@ -2710,8 +2710,8 @@ const sendMessage = async () => {
 .messageInput {
             min-height: 34px;
             height: 34px;
-            font-size: 13px;
-            padding: 4px;
+            font-size: 16px;
+            padding:2px 4px;
           }
         
 .sendBtn {
