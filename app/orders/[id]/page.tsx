@@ -2583,134 +2583,144 @@ const sendMessage = async () => {
           transition: 0.2s ease;
         }
 
-        @media (max-width: 768px) {
+@media (max-width: 768px) {
           .page {
-            padding: 8px;
-            background: #f3f6fa;
+            padding: 10px;
+            background: #465361;
             min-height: 100dvh;
             overflow-x: hidden;
           }
-
+        
           .shell {
             width: 100%;
             max-width: none;
           }
-
+        
           .topBar {
             margin-bottom: 8px;
           }
-
+        
           .backBtn {
             padding: 8px 14px;
             font-size: 13px;
           }
-
+        
           .loginName {
             font-size: 12px;
             color: #ffffff;
           }
-
+        
           .chatCard {
             width: 100%;
-            height: auto;
-            min-height: calc(100dvh - 80px);
+            height: calc(100dvh - 72px);
+            min-height: 0;
             border-radius: 18px;
-            margin-bottom: 12px;
+            margin-bottom: 0;
             box-shadow: none;
+            display: flex;
+            flex-direction: column;
           }
-
+        
           .chatHeader {
             height: 58px;
             padding: 0 16px;
+            flex-shrink: 0;
           }
-
+        
           .titleBlock {
             gap: 10px;
           }
-
+        
           .titleLabel {
             font-size: 11px;
           }
-
+        
           .titleBlock h1 {
             font-size: 16px;
           }
-
+        
           .messagesBox {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             padding: 16px 10px;
           }
-
+        
           .emptyMessage {
             min-height: 0;
             font-size: 16px;
             line-height: 1.7;
           }
-
+        
           .messageWrap {
             max-width: 94%;
           }
-
+        
           .messageMeta {
             font-size: 10px;
           }
-
+        
           .bubble {
             font-size: 14px;
           }
-
+        
           .sentImage {
-            max-width: 100%;
             width: 100%;
+            max-width: 100%;
             border-radius: 14px;
           }
-
-.imageGrid {
-  grid-template-columns: repeat(2, 1fr);
-  max-width: 100%;
-}
-
-.groupImage {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1 / 1;
-}
+        
+          .imageGrid {
+            grid-template-columns: repeat(2, 1fr);
+            max-width: 100%;
+          }
+        
+          .groupImage {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+          }
+        
           .typingArea {
+            flex-shrink: 0;
             padding: 0 16px;
           }
-
+        
           .previewDock {
+            flex-shrink: 0;
             padding: 8px 12px 0;
           }
-
+        
           .inputBar {
-            margin: 8px 8px 12px;
-            min-height: 56px;
-            padding: 6px;
-            gap: 6px;
-            border-radius: 22px;
+            flex-shrink: 0;
+            margin: 10px;
+            min-height: 62px;
+            padding: 8px;
+            gap: 8px;
+            border-radius: 999px;
           }
-
+        
           .imageAddBtn {
             height: 40px;
             padding: 0 12px;
             font-size: 11px;
           }
-
+        
           .messageInput {
             font-size: 16px;
             min-height: 42px;
             height: 42px;
             padding: 7px 4px;
           }
-
+        
           .sendBtn {
             width: 46px;
             height: 46px;
           }
-
-          .workPanel,
-          .orderHint,
-          .errorBox {
+        
+         .workPanel,
+         .orderHint {
             display: none !important;
           }
         }
