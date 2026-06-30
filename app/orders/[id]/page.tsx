@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+
 
 type Order = {
   id: string;
@@ -802,7 +805,44 @@ export default function OrderDetailPage() {
 
 
 
-
+const downloadImagesAsZip = async (images: Message[]) => {
+    try {
+      const zip = new JSZip();
+  
+      for (let i = 0; i < images.length; i++) {
+        const url = images[i].image_url;
+  
+        if (!url) continue;
+  
+        const res = await fetch(url);
+        const blob = await res.blob();
+  
+        const ext =
+          blob.type.split("/")[1] ||
+          url.split(".").pop() ||
+          "jpg";
+  
+        const displayId = order?.display_id || "images";
+        
+        zip.file(
+          `${displayId}_${String(i + 1).padStart(2, "0")}.${ext}`,
+          blob
+        );
+      }
+  
+      const content = await zip.generateAsync({
+        type: "blob",
+      });
+  
+      saveAs(
+        content,
+        `${order?.display_id || "images"}_images.zip`
+      );
+    } catch (e) {
+      console.error(e);
+      alert("ZIP作成に失敗しました");
+    }
+  };
   
 
 const sendMessage = async () => {
@@ -1303,17 +1343,29 @@ const sendMessage = async () => {
                                 group.isMe ? "me" : "other"
                               }`}
                             >
-                              <div className="imageGrid">
-                                {group.images.map((img) => (
-                                  <img
-                                    key={img.id}
-                                    src={img.image_url || ""}
-                                    alt="送信画像"
-                                    className="groupImage"
-                                    onClick={() => setModalImage(img.image_url || null)}
-                                  />
-                                ))}
+                            <div className="imageGrid">
+                              {group.images.map((img) => (
+                                <img
+                                  key={img.id}
+                                  src={img.image_url || ""}
+                                  alt="送信画像"
+                                  className="groupImage"
+                                  onClick={() => setModalImage(img.image_url || null)}
+                                />
+                              ))}
+                            </div>
+                            
+                            {group.images.length > 1 && (
+                              <div className="imageActions">
+                                <button
+                                  type="button"
+                                  className="zipButton"
+                                  onClick={() => downloadImagesAsZip(group.images)}
+                                >
+                                  📦 ZIPで保存
+                                </button>
                               </div>
+                            )}
                             </div>
                           </div>
                         </div>
@@ -1888,14 +1940,27 @@ const sendMessage = async () => {
   max-width: 246px;
 }
 
-.groupImage {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 10px;
-  display: block;
-  background: #111827;
+
+.imageActions {
+  margin-top: 10px;
 }
+
+.zipButton {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 999px;
+  background: #2563eb;
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.zipButton:hover {
+  background: #1d4ed8;
+}
+
+
 
         .groupImage {
           width: 100%;
