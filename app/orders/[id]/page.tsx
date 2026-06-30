@@ -2585,8 +2585,8 @@ const sendMessage = async () => {
 
         @media (max-width: 768px) {
           .page {
-            padding: 10px;
-            background: #465361;
+            padding: 8px;
+            background: #f3f6fa;
             min-height: 100dvh;
             overflow-x: hidden;
           }
@@ -2612,10 +2612,10 @@ const sendMessage = async () => {
 
           .chatCard {
             width: 100%;
-            height: calc(100dvh - 72px);
-            min-height: 0;
+            height: auto;
+            min-height: calc(100dvh - 80px);
             border-radius: 18px;
-            margin-bottom: 0;
+            margin-bottom: 12px;
             box-shadow: none;
           }
 
@@ -2683,10 +2683,11 @@ const sendMessage = async () => {
           }
 
           .inputBar {
-            margin: 10px 10px 14px;
-            min-height: 62px;
-            padding: 8px;
-            gap: 8px;
+            margin: 8px 8px 12px;
+            min-height: 56px;
+            padding: 6px;
+            gap: 6px;
+            border-radius: 22px;
           }
 
           .imageAddBtn {
