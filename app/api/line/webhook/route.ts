@@ -42,6 +42,27 @@ async function getLineProfile(userId: string) {
   return await res.json();
 }
 
+async function upsertLineUser(userId?: string | null) {
+  if (!userId) return;
+
+  const profile = await getLineProfile(userId);
+
+  const { error } = await supabase.from("line_users").upsert(
+    {
+      line_user_id: userId,
+      line_name: profile?.displayName || null,
+      created_at: new Date().toISOString(),
+    },
+    {
+      onConflict: "line_user_id",
+    }
+  );
+
+  if (error) {
+    console.error("line_users upsert error:", error.message);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -51,52 +72,31 @@ export async function POST(req: Request) {
     const userId = event?.source?.userId;
     const userMessage = String(event?.message?.text || "").trim();
 
+    await upsertLineUser(userId);
+
+    if (eventType === "follow") {
+      if (replyToken) {
+        await replyMessage(
+          replyToken,
+          "ご登録ありがとうございます！\n案件検索や進行確認が可能です◎\n\n┏━━━━━━━━━━┓\n　🔑パスワードの付与\n┗━━━━━━━━━━┛\n\n下記メニューの\n\n「初回パスワード請求」をタップして\nパスワード送付までお待ちください🙇‍♀️"
+        );
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
     if (!replyToken) {
       return NextResponse.json({ ok: true });
     }
 
-    // タブ切り替え時のpostbackを無視
     if (eventType === "postback") {
-      const data = event?.postback?.data;
-
-      if (data === "switch-help" || data === "switch-main") {
-        return NextResponse.json({ ok: true });
-      }
-
       return NextResponse.json({ ok: true });
     }
 
-    // 友だち追加時
-    if (eventType === "follow") {
-      const profile = userId ? await getLineProfile(userId) : null;
-
-      if (userId) {
-        await supabase.from("line_users").upsert(
-          {
-            line_user_id: userId,
-            line_name: profile?.displayName || null,
-            created_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "line_user_id",
-          }
-        );
-      }
-
-      await replyMessage(
-        replyToken,
-         "ご登録ありがとうございます！\n案件検索や進行確認が可能です◎\n\n┏━━━━━━━━━━┓\n　🔑パスワードの付与\n┗━━━━━━━━━━┛\n\n下記メニューの\n\n「「初回パスワード請求」をタップして\nパスワード送付までお待ちください🙇‍♀️"
-);
-
-      return NextResponse.json({ ok: true });
-    }
-
-    // テキストメッセージ以外は無視
     if (eventType !== "message" || !userMessage) {
       return NextResponse.json({ ok: true });
     }
 
-    // 自分の案件一覧
     if (userMessage === "自分の案件") {
       const { data, error } = await supabase
         .from("orders")
@@ -132,23 +132,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // お問い合わせ案内
     if (userMessage === "お問い合わせ") {
       await replyMessage(
         replyToken,
         "┏━━━━━━━━━━┓\n　💬 お問い合わせ受付\n┗━━━━━━━━━━┛\n\n内容をそのまま\nこのトークへ送信してください◎\n\n確認後、担当者より\n順次返信いたします。\n\n※ パスワード付与をご希望の場合、\n確認まで少々お時間をいただく場合があります🙇‍♀️"
-);
+      );
 
       return NextResponse.json({ ok: true });
     }
 
-    // #から始まるオーダーID以外は案件検索しない
-    // 問い合わせ本文などはここで静かに受け取って終了
     if (!userMessage.startsWith("#")) {
       return NextResponse.json({ ok: true });
     }
 
-    // オーダーID検索
     const { data, error } = await supabase
       .from("orders")
       .select("id,title,status,store_name,designer_name,contact_name")
