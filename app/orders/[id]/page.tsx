@@ -992,7 +992,7 @@ const sendMessage = async () => {
               sender_name: name,
               recipient_line_user_id: recipient.recipient_line_user_id,
               recipient_name: recipient.recipient_name,
-              notify_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+              notify_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
             });
 
           if (jobError) {
