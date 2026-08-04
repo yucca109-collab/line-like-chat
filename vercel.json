@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/line-notification-jobs/check",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
