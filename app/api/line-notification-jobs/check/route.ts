@@ -84,73 +84,75 @@ export async function GET() {
       continue;
     }
 
-    const displayId = order?.display_id || "未採番";
-    const title = order?.title || "案件";
+const displayId = order?.display_id || "未採番";
+const title = order?.title || "案件";
+const senderName = job.sender_name || "担当者";
 
-    const res = await fetch("https://api.line.me/v2/bot/message/push", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        to: job.recipient_line_user_id,
-        messages: [
-          {
-            type: "flex",
-            altText: "未読メッセージがあります",
-            contents: {
-              type: "bubble",
-              size: "mega",
-              body: {
-                type: "box",
-                layout: "vertical",
-                spacing: "md",
-                contents: [
-                  {
-                    type: "text",
-                    text: "未読メッセージがあります",
-                    weight: "bold",
-                    size: "xl",
-                    color: "#111111",
-                  },
-                  {
-                    type: "text",
-                    text: `オーダーID：${displayId}`,
-                    size: "sm",
-                    color: "#666666",
-                    wrap: true,
-                  },
-                  {
-                    type: "text",
-                    text: title,
-                    size: "sm",
-                    color: "#111111",
-                    wrap: true,
-                  },
-                ],
+const res = await fetch("https://api.line.me/v2/bot/message/push", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: job.recipient_line_user_id,
+    messages: [
+      {
+        type: "flex",
+        altText: `${senderName}さんから返信があります`,
+        contents: {
+          type: "bubble",
+          size: "mega",
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            contents: [
+              {
+                type: "text",
+                text: `🔴 ${senderName}さんから返信`,
+                weight: "bold",
+                size: "xl",
+                color: "#111111",
+                wrap: true,
               },
-              footer: {
-                type: "box",
-                layout: "vertical",
-                contents: [
-                  {
-                    type: "button",
-                    style: "primary",
-                    color: "#dc2626",
-                    action: {
-                      type: "uri",
-                      label: "案件を見る",
-                      uri: `https://app.1best.info/orders/${job.order_id}`,
-                    },
-                  },
-                ],
+              {
+                type: "text",
+                text: `オーダーID：${displayId}`,
+                size: "sm",
+                color: "#666666",
+                wrap: true,
               },
-            },
+              {
+                type: "text",
+                text: title,
+                size: "sm",
+                color: "#111111",
+                wrap: true,
+              },
+            ],
           },
-        ],
-      }),
-    });
+          footer: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "button",
+                style: "primary",
+                color: "#dc2626",
+                action: {
+                  type: "uri",
+                  label: "案件を見る",
+                  uri: `https://app.1best.info/orders/${job.order_id}`,
+                },
+              },
+            ],
+          },
+        },
+      },
+    ],
+  }),
+});
 
     if (!res.ok) {
       const errorText = await res.text();
